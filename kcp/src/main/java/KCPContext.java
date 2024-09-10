@@ -746,7 +746,7 @@ public class KCPContext {
                 }
             }
 
-            if (needSend > 0) {
+            if (needSend != 0) {
                 int need;
                 segment.setTimeStamp(current);
                 segment.setWindowSize(seg.getWindowSize());

@@ -70,7 +70,6 @@ public class KCPLatencySimulator {
         if (rttMax > rttMin) {
             delay += new Random().nextInt(rttMax - rttMin);
         }
-        System.out.println("send size:"+size);
         KCPDelayPacket dp = new KCPDelayPacket(data, size,current+delay);
         if (peer == 0) {
             p12.add(dp);
