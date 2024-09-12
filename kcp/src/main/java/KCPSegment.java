@@ -9,11 +9,11 @@ public class KCPSegment {
      */
     private int conversationId;
     /**
-     * 指令类型 (e.g., KCP_CMD_PUSH, KCP_CMD_ACK)
+     * 指令类型
      */
     private int commandId;
     /**
-     * 分片编号，用于重组数据
+     * 编号，用于重组分片数据
      */
     private int fragmentId;
     /**
@@ -25,17 +25,13 @@ public class KCPSegment {
      */
     private long timeStamp;
     /**
-     * 段序号
+     * 分片序号
      */
     private int segmentId;
     /**
      * 未确认序号
      */
     private int unacknowledgedSegmentId;
-    /**
-     * 数据长度
-     */
-    private int length;
     /**
      * 重新发送的时间戳
      */
@@ -57,10 +53,18 @@ public class KCPSegment {
      */
     private byte[] data;
 
-    public KCPSegment(int size) {
-        data = new byte[size];
+    /**
+     *
+     * @param length 数据大小
+     */
+    public KCPSegment(int length) {
+        data = new byte[length];
     }
 
+    /**
+     * 编码分片头
+     * @param buffer 数据缓存
+     */
     public void encodeHead(ByteBuffer buffer) {
         buffer.putInt(conversationId);
         buffer.putInt(commandId);
@@ -69,22 +73,15 @@ public class KCPSegment {
         buffer.putLong(timeStamp);
         buffer.putInt(segmentId);
         buffer.putInt(unacknowledgedSegmentId);
-        buffer.putInt(length);
+        buffer.putInt(data.length);
     }
 
-    public void decodeHead(ByteBuffer buffer) {
-        conversationId = buffer.getInt();
-        commandId = buffer.getInt();
-        fragmentId = buffer.getInt();
-        windowSize = buffer.getInt();
-        timeStamp = buffer.getLong();
-        segmentId = buffer.getInt();
-        unacknowledgedSegmentId = buffer.getInt();
-        length = buffer.getInt();
-    }
-
+    /**
+     * 编码分片数据
+     * @param buffer 数据缓存
+     */
     public void encodeData(ByteBuffer buffer) {
-        buffer.put(data, 0, length);
+        buffer.put(data);
     }
 
     public long getConversationId() {
@@ -144,11 +141,10 @@ public class KCPSegment {
     }
 
     public int getLength() {
-        return length;
-    }
-
-    public void setLength(int length) {
-        this.length = length;
+        if (data == null) {
+            return 0;
+        }
+        return data.length;
     }
 
     public long getResendTimeStamp() {
@@ -185,9 +181,5 @@ public class KCPSegment {
 
     public byte[] getData() {
         return data;
-    }
-
-    public void setData(byte[] data) {
-        this.data = data;
     }
 }
