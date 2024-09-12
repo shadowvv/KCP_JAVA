@@ -73,10 +73,10 @@ public class KCPTest implements IKCPContext {
             KCPContext2.setNoDelay(0,10,0,true);
         }else {
             // 启动快速模式
-            // 第二个参数 noDelay-启用以后若干常规加速将启动
-            // 第三个参数 interval为内部处理时钟，默认设置为 10ms
-            // 第四个参数 resend为快速重传指标，设置为2
-            // 第五个参数 为是否禁用常规流控，这里禁止
+            // 第一个参数 noDelay-启用以后若干常规加速将启动
+            // 第二个参数 interval为内部处理时钟，默认设置为 10ms
+            // 第三个参数 resend为快速重传指标，设置为2
+            // 第四个参数 为是否禁用常规流控，这里禁止
             KCPContext1.setNoDelay(2,10,2,true);
             KCPContext2.setNoDelay(2,10,2,true);
             KCPContext1.setMinRto(10);
@@ -94,7 +94,7 @@ public class KCPTest implements IKCPContext {
             KCPContext2.update(current);
 
             // 每隔 20ms，kcp1发送数据
-            for (;current >= slap;slap += 20){
+            for (;current >= slap;slap += 33){
                 buffer.clear();
                 buffer.putInt(index++);
                 buffer.putLong(current);
@@ -187,9 +187,9 @@ public class KCPTest implements IKCPContext {
 
     public static void main(String[] args) throws InterruptedException {
         KCPTest test = new KCPTest();
-        test.test(0);// 默认模式，类似 TCP：正常模式，无快速重传，常规流控
+//        test.test(0);// 默认模式，类似 TCP：正常模式，无快速重传，常规流控
 //        test.test(1);// 普通模式，关闭流控等
-//        test.test(2);// 快速模式，所有开关都打开，且关闭流控
+        test.test(2);// 快速模式，所有开关都打开，且关闭流控
     }
 
 }

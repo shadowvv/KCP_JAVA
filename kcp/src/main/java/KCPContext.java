@@ -186,6 +186,7 @@ public class KCPContext {
                 bufferIterator.remove();
                 this.receiveQueue.addLast(segment);
                 this.nextReceiveSegmentId++;
+                System.out.println("1111 nextReceiveSegmentId:"+this.nextReceiveSegmentId+" user"+user);
             } else {
                 break;
             }
@@ -330,6 +331,12 @@ public class KCPContext {
             int segmentId = buffer.getInt();
             int unacknowledgedNumber = buffer.getInt();
             int length = buffer.getInt();
+            byte[] data = new byte[length];
+            try{
+                buffer.get(data);
+            }catch (Exception e){
+                System.out.println("buff info commandId:"+commandId+" windowSize:"+windowSize+" unacknowledgedNumber:"+unacknowledgedNumber+" length:"+length);
+            }
 
             size -= KCPUtils.KCP_OVERHEAD;
             if (size < length || length < 0) {
@@ -387,9 +394,10 @@ public class KCPContext {
                             segment.setTimeStamp(timeStamp);
                             segment.setSegmentId(segmentId);
                             segment.setUnacknowledgedSegmentId(unacknowledgedNumber);
-                            if (length > 0) {
-                                buffer.get(segment.getData(), 0, length);
-                            }
+                            segment.setData(data);
+//                            if (length > 0) {
+//                                buffer.get(segment.getData(), 0, length);
+//                            }
                             this.parseData(segment);
                         }
                     }
@@ -571,6 +579,7 @@ public class KCPContext {
                 this.receiveBuff.removeFirst();
                 this.receiveQueue.add(tempSegment);
                 this.nextReceiveSegmentId++;
+                System.out.println("0000 nextReceiveSegmentId:"+this.nextReceiveSegmentId+" user:"+user);
             } else {
                 break;
             }
@@ -592,7 +601,7 @@ public class KCPContext {
                 break;
             } else if (segmentId != segment.getSegmentId()) {
                 if (!fastAckConserve) {
-                    segment.setFastAck(segment.getFastAck() + 1);
+//                    segment.setFastAck(segment.getFastAck() + 1);
                 }
                 if (timeStamp - segment.getTimeStamp() >= 0) {
                     segment.setFastAck(segment.getFastAck() + 1);
@@ -651,7 +660,7 @@ public class KCPContext {
         int change = 0;
         int lost = 0;
 
-        KCPSegment templateSegment = new KCPSegment(12);
+        KCPSegment templateSegment = new KCPSegment(0);
         templateSegment.setConversationId(this.conversationId);
         templateSegment.setCommandId(KCPUtils.KCP_CMD_ACK);
         templateSegment.setFragmentId(0);
@@ -662,6 +671,9 @@ public class KCPContext {
 
         // flush acknowledges
         int count = this.ackList.size();
+        if (count > 0){
+            System.out.println("ackList size:"+this.ackList.size());
+        }
         for (int i = 0; i < count; i++) {
             int size = buffer.position();
             if (size + KCPUtils.KCP_OVERHEAD > this.MTU) {

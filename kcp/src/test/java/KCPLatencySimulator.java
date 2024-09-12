@@ -1,5 +1,6 @@
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 
@@ -86,19 +87,17 @@ public class KCPLatencySimulator {
      * @return 接收的数据大小
      */
     public int receive(int peer, ByteBuffer buffer, int maxSize) {
-        List<KCPDelayPacket> list;
+        Iterator<KCPDelayPacket> it;
         if (peer == 0) {
-            list = p21;
+            if (p21.isEmpty()) return -1;
+            it = p21.iterator();
         } else {
-            list = p12;
-        }
-
-        if (list.isEmpty()) {
-            return -1;
+            if (p12.isEmpty()) return -1;
+            it = p12.iterator();
         }
 
         current = System.currentTimeMillis() & 0xffffffffL;
-        KCPDelayPacket dp = list.getFirst();
+        KCPDelayPacket dp = it.next();
         if (current < dp.timeStamp()) {
             return -2;
         }
@@ -107,7 +106,11 @@ public class KCPLatencySimulator {
         }
         maxSize = dp.size();
         buffer.put(dp.data(), 0, dp.size());
-        list.removeFirst();
+        if (peer == 0) {
+            it.remove(); // 从 p21 删除
+        } else {
+            it.remove(); // 从 p12 删除
+        }
         return maxSize;
     }
 
