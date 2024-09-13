@@ -71,6 +71,7 @@ public class KCPLatencySimulator {
         if (rttMax > rttMin) {
             delay += new Random().nextInt(rttMax - rttMin);
         }
+
         KCPDelayPacket dp = new KCPDelayPacket(data, size,current+delay);
         if (peer == 0) {
             p12.add(dp);

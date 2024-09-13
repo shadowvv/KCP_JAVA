@@ -1,6 +1,9 @@
 import java.nio.ByteBuffer;
 import java.util.*;
 
+/**
+ * KCP 连接传输上下文
+ */
 public class KCPContext {
 
     private boolean fastAckConserve = true;
@@ -43,7 +46,7 @@ public class KCPContext {
     //控制和策略
     private int noDelay;//是否启用无延迟模式。无延迟模式下，发送更快但可能导致网络波动。
     private boolean updated;//是否已经调用了update函数。用于确定KCP的初始化状态。
-    private int dead_link;//死链检测，表示经过多少次未收到ACK后认为连接断开。
+    private int deadLink;//死链检测，表示经过多少次未收到ACK后认为连接断开。
     private int incr;//可增加的字节数，用于控制拥塞窗口的增长。
 
     //队列和缓冲区
@@ -54,7 +57,6 @@ public class KCPContext {
 
     //ACK管理
     private List<KCPACKInfo> ackList;//保存待发送的ACK序号和时间戳的列表。
-    private int ackCount;//待发送的ACK数量。
 
     //其他
     private Object user;//用户数据
@@ -67,55 +69,12 @@ public class KCPContext {
 
     private IKCPContext IKCPContext;//回调方法
 
-
-    public static KCPContext buildTestObject(int conversionId, Object user) {
-        KCPContext context = new KCPContext();
-        context.conversationId = conversionId;
-        context.user = user;
-
-        context.sendUnacknowledgedSegmentId = 0;
-        context.nextSendSegmentId = 0;
-        context.nextReceiveSegmentId = 0;
-        context.lastSendTimeStamp = 0;
-        context.lastACKTimeStamp = 0;
-        context.nextProbeTimeStamp = 0;
-        context.probeWait = 0;
-        context.sendWindow = KCPUtils.KCP_WND_SND;
-        context.receiveWindow = KCPUtils.KCP_WND_RCV;
-        context.remoteWindow = KCPUtils.KCP_WND_RCV;
-        context.crowdedWindow = 0;
-        context.incr = 0;
-        context.probe = 0;
-        context.MTU = KCPUtils.KCP_MTU_DEF;
-        context.MSS = context.MTU - KCPUtils.KCP_OVERHEAD;
-        context.stream = 0;
-
-        context.buffer = ByteBuffer.allocate((context.MTU + KCPUtils.KCP_OVERHEAD) * 3);
-
-        context.sendQueue = new LinkedList<>();
-        context.receiveQueue = new LinkedList<>();
-        context.sendBuff = new LinkedList<>();
-        context.receiveBuff = new LinkedList<>();
-        context.state = 0;
-        context.ackList = new ArrayList<>();
-        context.ackCount = 0;
-        context.smoothRtti = 0;
-        context.rttVal = 0;
-        context.currentRTO = KCPUtils.KCP_RTO_DEF;
-        context.minRto = KCPUtils.KCP_RTO_MIN;
-        context.current = 0;
-        context.interval = KCPUtils.KCP_INTERVAL;
-        context.nextFlushTimeStamp = KCPUtils.KCP_INTERVAL;
-        context.noDelay = 0;
-        context.updated = false;
-        context.logMask = KCPUtils.KCP_LOG_ALL;
-        context.slowStartThresh = KCPUtils.KCP_THRESH_INIT;
-        context.fastResend = 0;
-        context.fastLimit = KCPUtils.KCP_FAST_ACK_LIMIT;
-        context.isNoCrowdedWindow = false;
-        context.sendCount = 0;
-        context.dead_link = KCPUtils.KCP_DEAD_LINK;
-        return context;
+    public KCPContext() {
+        this.sendQueue = new LinkedList<>();
+        this.receiveQueue = new LinkedList<>();
+        this.sendBuff = new LinkedList<>();
+        this.receiveBuff = new LinkedList<>();
+        this.ackList = new ArrayList<>();
     }
 
     public void release() {
@@ -125,7 +84,6 @@ public class KCPContext {
         this.receiveBuff.clear();
         this.ackList.clear();
         this.buffer = null;
-        this.ackCount = 0;
     }
 
     /**
@@ -186,7 +144,6 @@ public class KCPContext {
                 bufferIterator.remove();
                 this.receiveQueue.addLast(segment);
                 this.nextReceiveSegmentId++;
-                System.out.println("1111 nextReceiveSegmentId:"+this.nextReceiveSegmentId+" user"+user);
             } else {
                 break;
             }
@@ -233,7 +190,7 @@ public class KCPContext {
      * @param length 要发送的数据长度
      * @return 发送的数据长度，小于0表示返回错误
      */
-    public int send(ByteBuffer buffer, int length) {
+    public int send(ByteBuffer buffer, int length,int index) {
 
         assert (this.MSS > 0);
         if (length <= 0) {
@@ -331,15 +288,9 @@ public class KCPContext {
             int segmentId = buffer.getInt();
             int unacknowledgedNumber = buffer.getInt();
             int length = buffer.getInt();
-            byte[] data = new byte[length];
-            try{
-                buffer.get(data);
-            }catch (Exception e){
-                System.out.println("buff info commandId:"+commandId+" windowSize:"+windowSize+" unacknowledgedNumber:"+unacknowledgedNumber+" length:"+length);
-            }
 
             size -= KCPUtils.KCP_OVERHEAD;
-            if (size < length || length < 0) {
+            if (size < length) {
                 return KCPUtils.KCP_ERROR_DATA_SIZE_WRONG;
             }
             if (commandId != KCPUtils.KCP_CMD_PUSH && commandId != KCPUtils.KCP_CMD_ACK
@@ -394,10 +345,9 @@ public class KCPContext {
                             segment.setTimeStamp(timeStamp);
                             segment.setSegmentId(segmentId);
                             segment.setUnacknowledgedSegmentId(unacknowledgedNumber);
-                            segment.setData(data);
-//                            if (length > 0) {
-//                                buffer.get(segment.getData(), 0, length);
-//                            }
+                            if (length > 0) {
+                                buffer.get(segment.getData(), 0, length);
+                            }
                             this.parseData(segment);
                         }
                     }
@@ -557,6 +507,7 @@ public class KCPContext {
             return;
         }
 
+        boolean find = false;
         ListIterator<KCPSegment> it = this.receiveBuff.listIterator(this.receiveBuff.size());
         while (it.hasPrevious()) {
             KCPSegment tempSegment = it.previous();
@@ -565,12 +516,15 @@ public class KCPContext {
                 break;
             }
             if (segmentId - tempSegment.getSegmentId() > 0) {
+                it.next();
+                it.add(segment);
+                find = true;
                 break;
             }
         }
 
-        if (!repeat) {
-            it.add(segment);
+        if (!repeat && !find) {
+            this.receiveBuff.addFirst(segment);
         }
 
         while (!this.receiveBuff.isEmpty()) {
@@ -579,8 +533,7 @@ public class KCPContext {
                 this.receiveBuff.removeFirst();
                 this.receiveQueue.add(tempSegment);
                 this.nextReceiveSegmentId++;
-                System.out.println("0000 nextReceiveSegmentId:"+this.nextReceiveSegmentId+" user:"+user);
-            } else {
+            }else {
                 break;
             }
         }
@@ -601,7 +554,7 @@ public class KCPContext {
                 break;
             } else if (segmentId != segment.getSegmentId()) {
                 if (!fastAckConserve) {
-//                    segment.setFastAck(segment.getFastAck() + 1);
+                    segment.setFastAck(segment.getFastAck() + 1);
                 }
                 if (timeStamp - segment.getTimeStamp() >= 0) {
                     segment.setFastAck(segment.getFastAck() + 1);
@@ -671,9 +624,6 @@ public class KCPContext {
 
         // flush acknowledges
         int count = this.ackList.size();
-        if (count > 0){
-            System.out.println("ackList size:"+this.ackList.size());
-        }
         for (int i = 0; i < count; i++) {
             int size = buffer.position();
             if (size + KCPUtils.KCP_OVERHEAD > this.MTU) {
@@ -814,7 +764,7 @@ public class KCPContext {
                     segment.encodeData(buffer);
                 }
 
-                if (segment.getSendCount() >= this.dead_link) {
+                if (segment.getSendCount() >= this.deadLink) {
                     this.state = -1;
                 }
             }
@@ -1228,12 +1178,12 @@ public class KCPContext {
         this.probeWait = probeWait;
     }
 
-    public int getDead_link() {
-        return dead_link;
+    public int getDeadLink() {
+        return deadLink;
     }
 
-    public void setDead_link(int dead_link) {
-        this.dead_link = dead_link;
+    public void setDeadLink(int deadLink) {
+        this.deadLink = deadLink;
     }
 
     public int getIncr() {
@@ -1250,14 +1200,6 @@ public class KCPContext {
 
     public void setAckList(List<KCPACKInfo> ackList) {
         this.ackList = ackList;
-    }
-
-    public int getAckCount() {
-        return ackCount;
-    }
-
-    public void setAckCount(int ackCount) {
-        this.ackCount = ackCount;
     }
 
     public LinkedList<KCPSegment> getSendQueue() {

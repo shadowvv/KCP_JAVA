@@ -31,6 +31,49 @@ public class KCPTest implements IKCPContext {
         System.out.println(log);
     }
 
+    public KCPContext buildTestObject(int conversionId, Object user) {
+        KCPContext context = new KCPContext();
+        context.setConversationId(conversionId);
+        context.setUser(user);
+
+        context.setSendUnacknowledgedSegmentId(0);
+        context.setNextSendSegmentId(0);
+        context.setNextReceiveSegmentId(0);
+        context.setLastSendTimeStamp(0);
+        context.setLastACKTimeStamp(0);
+        context.setNextProbeTimeStamp(0);
+        context.setProbeWait(0);
+        context.setWindowSize(KCPUtils.KCP_WND_SND,KCPUtils.KCP_WND_RCV);
+        context.setRemoteWindow(KCPUtils.KCP_WND_RCV);
+        context.setCrowdedWindow(0);
+        context.setIncr(0);
+        context.setProbe(0);
+        context.setMTU(KCPUtils.KCP_MTU_DEF);
+        context.setMSS(context.getMTU() - KCPUtils.KCP_OVERHEAD);
+        context.setStream(0);
+
+        context.setBuffer(ByteBuffer.allocate((context.getMTU() + KCPUtils.KCP_OVERHEAD) * 3));
+
+        context.setState(0);
+        context.setSmoothRtti(0);
+        context.setRttVal(0);
+        context.setCurrentRTO(KCPUtils.KCP_RTO_DEF);
+        context.setMinRto(KCPUtils.KCP_RTO_MIN);
+        context.setCurrent(0);
+        context.setInterval(KCPUtils.KCP_INTERVAL);
+        context.setNextFlushTimeStamp(KCPUtils.KCP_INTERVAL);
+        context.setNoDelay(0);
+        context.setUpdated(false);
+        context.setLogMask(0);
+        context.setSlowStartThresh(KCPUtils.KCP_THRESH_INIT);
+        context.setFastResend(0);
+        context.setFastLimit(KCPUtils.KCP_FAST_ACK_LIMIT);
+        context.setIsNoCrowdedWindow(false);
+        context.setSendCount(0);
+        context.setDeadLink(KCPUtils.KCP_DEAD_LINK);
+        return context;
+    }
+
     /**
      * 测试用例
      * @param mode 0:默认模式;1:普通模式，关闭流控等;2:启动快速模式
@@ -42,8 +85,8 @@ public class KCPTest implements IKCPContext {
 
         // 创建两个端点的 kcp对象，第一个参数 conv是会话编号，同一个会话需要相同
         // 最后一个是 user参数，用来传递标识
-        KCPContext KCPContext1 = KCPContext.buildTestObject(0x11223344,0);
-        KCPContext KCPContext2 = KCPContext.buildTestObject(0x11223344,1);
+        KCPContext KCPContext1 = buildTestObject(0x11223344,0);
+        KCPContext KCPContext2 = buildTestObject(0x11223344,1);
 
         // 设置kcp的下层输出，这里为 udp_output，模拟udp网络输出函数
         KCPContext1.setIKCPContext(this);
@@ -94,13 +137,13 @@ public class KCPTest implements IKCPContext {
             KCPContext2.update(current);
 
             // 每隔 20ms，kcp1发送数据
-            for (;current >= slap;slap += 33){
+            for (;current >= slap ;slap += 20){
                 buffer.clear();
                 buffer.putInt(index++);
                 buffer.putLong(current);
                 buffer.flip();
                 // 发送上层协议包
-                if(KCPContext1.send(buffer,12) < 0){
+                if(KCPContext1.send(buffer,12,index - 1) < 0){
                     return;
                 }
             }
@@ -135,7 +178,7 @@ public class KCPTest implements IKCPContext {
                 if (hr < 0){break;}
                 // 如果收到包就回射
                 buffer.flip();
-                KCPContext2.send(buffer,hr);
+                KCPContext2.send(buffer,hr,0);
             }
 
             // kcp1收到kcp2的回射数据
@@ -187,8 +230,8 @@ public class KCPTest implements IKCPContext {
 
     public static void main(String[] args) throws InterruptedException {
         KCPTest test = new KCPTest();
-//        test.test(0);// 默认模式，类似 TCP：正常模式，无快速重传，常规流控
-//        test.test(1);// 普通模式，关闭流控等
+        test.test(0);// 默认模式，类似 TCP：正常模式，无快速重传，常规流控
+        test.test(1);// 普通模式，关闭流控等
         test.test(2);// 快速模式，所有开关都打开，且关闭流控
     }
 
