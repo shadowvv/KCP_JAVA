@@ -1,9 +1,22 @@
 public class KCPUtils {
 
-    public static final int KCP_CMD_PUSH = 81;              // cmd: push data
-    public static final int KCP_CMD_ACK = 82;               // cmd: ack
-    public static final int KCP_CMD_WINDOW_ASK = 83;        // cmd: window probe (ask)
-    public static final int KCP_CMD_WINS = 84;              // cmd: window size (tell)
+    /**
+     * 推送数据
+     */
+    public static final int KCP_CMD_PUSH = 81;
+    /**
+     * 推送ack信息
+     */
+    public static final int KCP_CMD_ACK = 82;
+    /**
+     * 请求窗口大小
+     */
+    public static final int KCP_CMD_WINDOW_ASK = 83;
+    /**
+     * 通知窗口大小
+     */
+    public static final int KCP_CMD_WINDOW_SIZE = 84;
+
 
     public static final int KCP_RTO_NDL = 30;               // no delay min rto
     public static final int KCP_RTO_MIN = 100;              // normal min rto
@@ -17,7 +30,6 @@ public class KCPUtils {
     public static final int KCP_MTU_DEF = 1400;
     public static final int KCP_ACK_FAST = 3;
     public static final int KCP_INTERVAL = 100;
-    public static final int KCP_OVERHEAD = 36;
     public static final int KCP_DEAD_LINK = 20;
     public static final int KCP_THRESH_INIT = 2;
     public static final int KCP_THRESH_MIN = 2;

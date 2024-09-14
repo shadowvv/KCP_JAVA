@@ -64,7 +64,7 @@ public class KCPContext {
     private int fastResend;//快速重传参数，当某个包被跳过多次ACK时会触发快速重传。
     private int fastLimit;//限制快速重传的最大次数，超过此次数的包不会继续快速重传。
     private boolean isNoCrowdedWindow;//是否禁用拥塞窗口控制，禁用后发送速度只受限于接收窗口。
-    private int stream;//流模式控制，决定是否按顺序处理数据。
+    private boolean isStream;//流模式控制，决定是否按顺序处理数据。
     private int logMask;//日志掩码，用于控制日志输出的类别。
 
     private IKCPContext IKCPContext;//回调方法
@@ -84,6 +84,77 @@ public class KCPContext {
         this.receiveBuff.clear();
         this.ackList.clear();
         this.buffer = null;
+    }
+
+    /**
+     * 将数据发送到KCP的发送队列中
+     *
+     * @param buffer 发送的数据缓冲区
+     * @param length 要发送的数据长度
+     * @return 发送的数据长度，小于0表示返回错误
+     */
+    public int send(ByteBuffer buffer, int length) {
+
+        assert (this.MSS > 0);
+        if (length <= 0) {
+            return KCPUtils.KCP_ERROR_ARGUMENT_INVALID;
+        }
+
+        int sent = 0;
+        // append to previous segment in streaming mode (if possible)
+        if (this.isStream) {
+            if (!this.sendQueue.isEmpty()) {
+                KCPSegment old = this.sendQueue.getLast();
+                if (old.getLength() < this.MSS) {
+                    int capacity = this.MSS - old.getLength();
+                    int extend = Math.min(length, capacity);
+                    KCPSegment segment = new KCPSegment(old.getLength() + extend);
+
+                    System.arraycopy(old.getData(), 0, segment.getData(), 0, old.getLength());
+                    buffer.get(segment.getData(), old.getLength(), extend);
+
+                    segment.setFragmentId(0);
+                    length -= extend;
+                    this.sendQueue.removeLast();
+                    this.sendQueue.add(segment);
+                    sent = extend;
+                }
+            }
+            if (length <= 0) {
+                return sent;
+            }
+        }
+
+        int count;
+        if (length <= this.MSS) {
+            count = 1;
+        } else {
+            count = (length + this.MSS - 1) / this.MSS;
+        }
+        if (count >= KCPUtils.KCP_WND_RCV) {
+            if (this.isStream && sent > 0) {
+                return sent;
+            } else {
+                return KCPUtils.KCP_ERROR_OVER_RCV_WINDOW;
+            }
+        }
+        if (count == 0) {
+            count = 1;
+        }
+
+        // fragment
+        for (int i = 0; i < count; i++) {
+            int size = Math.min(length, this.MSS);
+            KCPSegment segment = new KCPSegment(size);
+            if (length > 0) {
+                buffer.get(segment.getData(), 0, size);
+            }
+            segment.setFragmentId(!this.isStream ? (count - i - 1) : 0);
+            this.sendQueue.add(segment);
+            length -= size;
+            sent += size;
+        }
+        return sent;
     }
 
     /**
@@ -184,77 +255,6 @@ public class KCPContext {
     }
 
     /**
-     * 将数据分段并发送到 KCP 的发送队列中
-     *
-     * @param buffer 发送的数据缓冲区
-     * @param length 要发送的数据长度
-     * @return 发送的数据长度，小于0表示返回错误
-     */
-    public int send(ByteBuffer buffer, int length,int index) {
-
-        assert (this.MSS > 0);
-        if (length <= 0) {
-            return KCPUtils.KCP_ERROR_ARGUMENT_INVALID;
-        }
-
-        int sent = 0;
-        // append to previous segment in streaming mode (if possible)
-        if (this.stream != 0) {
-            if (!this.sendQueue.isEmpty()) {
-                KCPSegment old = this.sendQueue.getLast();
-                if (old.getLength() < this.MSS) {
-                    int capacity = this.MSS - old.getLength();
-                    int extend = Math.min(length, capacity);
-                    KCPSegment segment = new KCPSegment(old.getLength() + extend);
-
-                    System.arraycopy(old.getData(), 0, segment.getData(), 0, old.getLength());
-                    buffer.get(segment.getData(), old.getLength(), extend);
-
-                    segment.setFragmentId(0);
-                    length -= extend;
-                    this.sendQueue.removeLast();
-                    this.sendQueue.add(segment);
-                    sent = extend;
-                }
-            }
-            if (length <= 0) {
-                return sent;
-            }
-        }
-
-        int count;
-        if (length <= this.MSS) {
-            count = 1;
-        } else {
-            count = (length + this.MSS - 1) / this.MSS;
-        }
-        if (count >= KCPUtils.KCP_WND_RCV) {
-            if (this.stream != 0 && sent > 0) {
-                return sent;
-            } else {
-                return KCPUtils.KCP_ERROR_OVER_RCV_WINDOW;
-            }
-        }
-        if (count == 0) {
-            count = 1;
-        }
-
-        // fragment
-        for (int i = 0; i < count; i++) {
-            int size = Math.min(length, this.MSS);
-            KCPSegment segment = new KCPSegment(size);
-            if (length > 0) {
-                buffer.get(segment.getData(), 0, size);
-            }
-            segment.setFragmentId(this.stream == 0 ? (count - i - 1) : 0);
-            this.sendQueue.add(segment);
-            length -= size;
-            sent += size;
-        }
-        return sent;
-    }
-
-    /**
      * 接收数据
      *
      * @param buffer 数据buff
@@ -270,31 +270,31 @@ public class KCPContext {
         if (canLog(KCPUtils.KCP_LOG_INPUT)) {
             writeLog(KCPUtils.KCP_LOG_INPUT, "[RI] %d bytes", size);
         }
-        if (size < KCPUtils.KCP_OVERHEAD) {
+        if (size < KCPSegment.KCP_OVERHEAD) {
             return KCPUtils.KCP_ERROR_DATA_SIZE_WRONG;
         }
 
-        while (size >= KCPUtils.KCP_OVERHEAD) {
+        while (size >= KCPSegment.KCP_OVERHEAD) {
 
             int conversationId = buffer.getInt();
             if (conversationId != this.conversationId) {
                 return KCPUtils.KCP_ERROR_CONVERSATION_WRONG;
             }
 
-            int commandId = buffer.getInt();
-            int fragmentId = buffer.getInt();
-            int windowSize = buffer.getInt();
-            long timeStamp = buffer.getLong();
             int segmentId = buffer.getInt();
+            int fragmentId = buffer.getInt();
+            int commandId = buffer.getInt();
+            long timeStamp = buffer.getLong();
             int unacknowledgedNumber = buffer.getInt();
+            int windowSize = buffer.getInt();
             int length = buffer.getInt();
 
-            size -= KCPUtils.KCP_OVERHEAD;
+            size -= KCPSegment.KCP_OVERHEAD;
             if (size < length) {
                 return KCPUtils.KCP_ERROR_DATA_SIZE_WRONG;
             }
             if (commandId != KCPUtils.KCP_CMD_PUSH && commandId != KCPUtils.KCP_CMD_ACK
-                    && commandId != KCPUtils.KCP_CMD_WINDOW_ASK && commandId != KCPUtils.KCP_CMD_WINS) {
+                    && commandId != KCPUtils.KCP_CMD_WINDOW_ASK && commandId != KCPUtils.KCP_CMD_WINDOW_SIZE) {
                 return KCPUtils.KCP_ERROR_CMD_WRONG;
             }
 
@@ -360,7 +360,7 @@ public class KCPContext {
                     }
                     break;
                 }
-                case KCPUtils.KCP_CMD_WINS: {
+                case KCPUtils.KCP_CMD_WINDOW_SIZE: {
                     if (canLog(KCPUtils.KCP_LOG_IN_WINS)) {
                         writeLog(KCPUtils.KCP_LOG_IN_WINS, "input wins: %d", windowSize);
                     }
@@ -575,11 +575,10 @@ public class KCPContext {
         return 0;
     }
 
-    //---------------------------------------------------------------------
-    // update state (call it repeatedly, every 10ms-100ms), or you can ask
-    // check when to call it again (without input/_send calling).
-    // 'current' - current timestamp in timeMillis.
-    //---------------------------------------------------------------------
+    /**
+     * update state (call it repeatedly, every 10ms-100ms), or you can ask check when to call it again (without input/_send calling).
+     * @param current current timestamp in timeMillis
+     */
     public void update(long current) {
         long slap;
         this.current = current;
@@ -626,7 +625,7 @@ public class KCPContext {
         int count = this.ackList.size();
         for (int i = 0; i < count; i++) {
             int size = buffer.position();
-            if (size + KCPUtils.KCP_OVERHEAD > this.MTU) {
+            if (size + KCPSegment.KCP_OVERHEAD > this.MTU) {
                 buffer.flip();
                 this.output(buffer, size);
                 buffer.clear();
@@ -663,7 +662,7 @@ public class KCPContext {
         if ((this.probe & KCPUtils.KCP_ASK_SEND) != 0) {
             templateSegment.setCommandId(KCPUtils.KCP_CMD_WINDOW_ASK);
             int size = buffer.position();
-            if (size + KCPUtils.KCP_OVERHEAD > this.MTU) {
+            if (size + KCPSegment.KCP_OVERHEAD > this.MTU) {
                 buffer.flip();
                 this.output(buffer, size);
                 buffer.clear();
@@ -672,9 +671,9 @@ public class KCPContext {
         }
 
         if ((this.probe & KCPUtils.KCP_ASK_TELL) != 0) {
-            templateSegment.setCommandId(KCPUtils.KCP_CMD_WINS);
+            templateSegment.setCommandId(KCPUtils.KCP_CMD_WINDOW_SIZE);
             int size = buffer.position();
-            if (size + KCPUtils.KCP_OVERHEAD > this.MTU) {
+            if (size + KCPSegment.KCP_OVERHEAD > this.MTU) {
                 buffer.flip();
                 this.output(buffer, size);
                 buffer.clear();
@@ -751,7 +750,7 @@ public class KCPContext {
                 segment.setUnacknowledgedSegmentId(this.nextReceiveSegmentId);
 
                 int size = buffer.position();
-                need = KCPUtils.KCP_OVERHEAD + segment.getLength();
+                need = KCPSegment.KCP_OVERHEAD + segment.getLength();
 
                 if (size + need > this.MTU) {
                     buffer.flip();
@@ -841,15 +840,15 @@ public class KCPContext {
         return 0;
     }
 
-    //---------------------------------------------------------------------
-    // Determine when should you invoke update:
-    // returns when you should invoke update in timeMillis, if there
-    // is no input/send calling. you can call update in that
-    // time, instead of call update repeatedly.
-    // Important to reduce unnecessary update invoking. use it to
-    // schedule update (eg. implementing an epoll-like mechanism,
-    // or optimize update when handling massive kcp connections)
-    //---------------------------------------------------------------------
+    /**
+     * Determine when should you invoke update:
+     * returns when you should invoke update in timeMillis, if there
+     * is no input/send calling. you can call update in that
+     * time, instead of call update repeatedly.
+     * Important to reduce unnecessary update invoking. use it to
+     * schedule update (eg. implementing an epoll-like mechanism,
+     * or optimize update when handling massive kcp connections)
+     */
     public long check(long current) {
         long flushTimeStamp = this.nextFlushTimeStamp;
         long tm_packet = 0x7fffffff;
@@ -897,12 +896,12 @@ public class KCPContext {
     }
 
     public int setMTU(int mtu) {
-        if (mtu < 50 || mtu < KCPUtils.KCP_OVERHEAD) {
+        if (mtu < 50 || mtu < KCPSegment.KCP_OVERHEAD) {
             return KCPUtils.KCP_ERROR_ARGUMENT_INVALID;
         }
-        ByteBuffer buffer = ByteBuffer.allocate((mtu + KCPUtils.KCP_OVERHEAD) * 3);
+        ByteBuffer buffer = ByteBuffer.allocate((mtu + KCPSegment.KCP_OVERHEAD) * 3);
         this.MTU = mtu;
-        this.MSS = this.MTU - KCPUtils.KCP_OVERHEAD;
+        this.MSS = this.MTU - KCPSegment.KCP_OVERHEAD;
         this.buffer = buffer;
         return KCPUtils.KCP_OPERATION_SUCCESS;
     }
@@ -921,6 +920,7 @@ public class KCPContext {
     }
 
     /**
+     *
      * @param noDelay
      * @param interval
      * @param reSend
@@ -1274,12 +1274,12 @@ public class KCPContext {
         this.isNoCrowdedWindow = isNoCrowdedWindow;
     }
 
-    public int getStream() {
-        return stream;
+    public boolean getIsStream() {
+        return isStream;
     }
 
-    public void setStream(int stream) {
-        this.stream = stream;
+    public void setIsStream(boolean stream) {
+        this.isStream = stream;
     }
 
     public int getLogMask() {

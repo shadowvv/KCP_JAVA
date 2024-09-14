@@ -49,10 +49,10 @@ public class KCPTest implements IKCPContext {
         context.setIncr(0);
         context.setProbe(0);
         context.setMTU(KCPUtils.KCP_MTU_DEF);
-        context.setMSS(context.getMTU() - KCPUtils.KCP_OVERHEAD);
-        context.setStream(0);
+        context.setMSS(context.getMTU() - KCPSegment.KCP_OVERHEAD);
+        context.setIsStream(false);
 
-        context.setBuffer(ByteBuffer.allocate((context.getMTU() + KCPUtils.KCP_OVERHEAD) * 3));
+        context.setBuffer(ByteBuffer.allocate((context.getMTU() + KCPSegment.KCP_OVERHEAD) * 3));
 
         context.setState(0);
         context.setSmoothRtti(0);
@@ -143,7 +143,7 @@ public class KCPTest implements IKCPContext {
                 buffer.putLong(current);
                 buffer.flip();
                 // 发送上层协议包
-                if(KCPContext1.send(buffer,12,index - 1) < 0){
+                if(KCPContext1.send(buffer,12) < 0){
                     return;
                 }
             }
@@ -178,7 +178,7 @@ public class KCPTest implements IKCPContext {
                 if (hr < 0){break;}
                 // 如果收到包就回射
                 buffer.flip();
-                KCPContext2.send(buffer,hr,0);
+                KCPContext2.send(buffer,hr);
             }
 
             // kcp1收到kcp2的回射数据

@@ -4,34 +4,39 @@ import java.nio.ByteBuffer;
  * KCP 分片
  */
 public class KCPSegment {
+
+    public static final int KCP_OVERHEAD = 36;
+
     /**
      * 会话ID，用于区分不同的KCP连接
      */
     private int conversationId;
     /**
-     * 指令类型
+     * 分片序号
      */
-    private int commandId;
+    private int segmentId;
     /**
      * 编号，用于重组分片数据
      */
     private int fragmentId;
     /**
-     * 窗口大小
+     * 指令类型
      */
-    private int windowSize;
+    private int commandId;
     /**
      * 发送时间戳
      */
     private long timeStamp;
-    /**
-     * 分片序号
-     */
-    private int segmentId;
+
+
     /**
      * 未确认序号
      */
     private int unacknowledgedSegmentId;
+    /**
+     * 窗口大小
+     */
+    private int windowSize;
     /**
      * 重新发送的时间戳
      */
@@ -48,6 +53,7 @@ public class KCPSegment {
      * 发送次数
      */
     private int sendCount;
+
     /**
      * 数据
      */
@@ -67,12 +73,13 @@ public class KCPSegment {
      */
     public void encodeHead(ByteBuffer buffer) {
         buffer.putInt(conversationId);
-        buffer.putInt(commandId);
-        buffer.putInt(fragmentId);
-        buffer.putInt(windowSize);
-        buffer.putLong(timeStamp);
         buffer.putInt(segmentId);
+        buffer.putInt(fragmentId);
+        buffer.putInt(commandId);
+        buffer.putLong(timeStamp);
+
         buffer.putInt(unacknowledgedSegmentId);
+        buffer.putInt(windowSize);
         buffer.putInt(data.length);
     }
 
@@ -83,6 +90,7 @@ public class KCPSegment {
     public void encodeData(ByteBuffer buffer) {
         buffer.put(data);
     }
+
 
     public long getConversationId() {
         return conversationId;
