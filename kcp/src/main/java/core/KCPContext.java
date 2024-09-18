@@ -403,10 +403,6 @@ public class KCPContext {
      * @return 返回操作是否成功，小于0代表返回错误
      */
     public int input(ByteBuffer buffer, int length) {
-        long prevUnacknowledgedId = this.sendUnacknowledgedSegmentId;
-        long maxAck = 0;
-        long lastTimeStamp = 0;
-        int flag = 0;
 
         if (length < KCPSegment.KCP_OVERHEAD) {
             throw new KCPBufferDataNotEnoughToReceiveException("the buffer length is not enough to receive",this);
@@ -416,54 +412,60 @@ public class KCPContext {
             writeLog(KCPUtils.KCP_LOG_INPUT, "[RI] %d bytes", length);
         }
 
+        int prevUnacknowledgedId = this.sendUnacknowledgedSegmentId;
+        int maxAckSegmentId = 0;
+        long lastAckSegmentTimeStamp = 0;
+        boolean needFastAck = false;
+
+        //读取数据
         while (length >= KCPSegment.KCP_OVERHEAD) {
 
             int conversationId = buffer.getInt();
             if (conversationId != this.conversationId) {
-                return KCPUtils.KCP_ERROR_CONVERSATION_WRONG;
+                throw new KCPDataHeadWrongConversationIdException("data head has wrong conversation id",this);
             }
 
             int segmentId = buffer.getInt();
             int fragmentId = buffer.getInt();
             int commandId = buffer.getInt();
+            if (commandId != KCPUtils.KCP_CMD_PUSH && commandId != KCPUtils.KCP_CMD_ACK
+                    && commandId != KCPUtils.KCP_CMD_WINDOW_ASK && commandId != KCPUtils.KCP_CMD_WINDOW_SIZE) {
+                throw new KCPDataHeadWrongCommandIdException("data head has wrong command id",this);
+            }
+
             long timeStamp = buffer.getLong();
             int unacknowledgedNumber = buffer.getInt();
             int windowSize = buffer.getInt();
             int segmentLength = buffer.getInt();
-
             length -= KCPSegment.KCP_OVERHEAD;
             if (length < segmentLength) {
-                return KCPUtils.KCP_ERROR_DATA_SIZE_WRONG;
-            }
-            if (commandId != KCPUtils.KCP_CMD_PUSH && commandId != KCPUtils.KCP_CMD_ACK
-                    && commandId != KCPUtils.KCP_CMD_WINDOW_ASK && commandId != KCPUtils.KCP_CMD_WINDOW_SIZE) {
-                return KCPUtils.KCP_ERROR_CMD_WRONG;
+                throw new KCPWrongDataException("data left length is less than segment length",this);
             }
 
             this.remoteWindow = windowSize;
-            this.parseUnacknowledgedNumber(unacknowledgedNumber);
-            this.shrinkBuff();
+            this.removeSegmentFromSendBuffByUnacknowledgedSegmentId(unacknowledgedNumber);
+            this.updateSendUnacknowledgedSegmentId();
 
             switch (commandId) {
                 case KCPUtils.KCP_CMD_ACK: {
                     if (this.current - timeStamp >= 0) {
-                        updateAck((int) (this.current - timeStamp));
+                        updateRTTInfo((int) (this.current - timeStamp));
                     }
-                    this.parseAck(segmentId);
-                    this.shrinkBuff();
-                    if (flag == 0) {
-                        flag = 1;
-                        maxAck = segmentId;
-                        lastTimeStamp = timeStamp;
+                    this.removeSegmentFromSendBuffByAcknowledgedSegmentId(segmentId);
+                    this.updateSendUnacknowledgedSegmentId();
+                    if (!needFastAck) {
+                        needFastAck = true;
+                        maxAckSegmentId = segmentId;
+                        lastAckSegmentTimeStamp = timeStamp;
                     } else {
-                        if (segmentId - maxAck > 0) {
+                        if (segmentId - maxAckSegmentId > 0) {
                             if (!fastAckConserve) {
-                                maxAck = segmentId;
-                                lastTimeStamp = timeStamp;
+                                maxAckSegmentId = segmentId;
+                                lastAckSegmentTimeStamp = timeStamp;
                             }
-                            if (timeStamp - lastTimeStamp > 0) {
-                                maxAck = segmentId;
-                                lastTimeStamp = timeStamp;
+                            if (timeStamp - lastAckSegmentTimeStamp > 0) {
+                                maxAckSegmentId = segmentId;
+                                lastAckSegmentTimeStamp = timeStamp;
                             }
                         }
                     }
@@ -477,7 +479,7 @@ public class KCPContext {
                         writeLog(KCPUtils.KCP_LOG_IN_DATA, "input psh: sn=%d ts=%d", segmentId, timeStamp);
                     }
                     if (segmentId - (this.nextReceiveSegmentId + this.receiveWindow) < 0) {
-                        this.pushAck(segmentId, timeStamp);
+                        this.pushAcknowledgedInfo(segmentId, timeStamp);
                         if (segmentId - this.nextReceiveSegmentId >= 0) {
                             KCPSegment segment = new KCPSegment(segmentLength);
                             segment.setConversationId(conversationId);
@@ -514,8 +516,8 @@ public class KCPContext {
             length -= segmentLength;
         }
 
-        if (flag != 0) {
-            parseFastAck(maxAck, lastTimeStamp);
+        if (needFastAck) {
+            parseFastAck(maxAckSegmentId, lastAckSegmentTimeStamp);
         }
         //拥塞控制
         if (this.sendUnacknowledgedSegmentId - prevUnacknowledgedId > 0) {
@@ -545,13 +547,13 @@ public class KCPContext {
     /**
      * 根据未确认Id移除已确认的 segment
      *
-     * @param unacknowledgedNumber 未确认Id
+     * @param unacknowledgedSegmentId 未确认Id
      */
-    private void parseUnacknowledgedNumber(long unacknowledgedNumber) {
+    private void removeSegmentFromSendBuffByUnacknowledgedSegmentId(int unacknowledgedSegmentId) {
         Iterator<KCPSegment> it = this.sendBuff.iterator();
         while (it.hasNext()) {
             KCPSegment seg = it.next();
-            if (unacknowledgedNumber - seg.getSegmentId() > 0) {
+            if (unacknowledgedSegmentId - seg.getSegmentId() > 0) {
                 it.remove();
             } else {
                 break;
@@ -562,7 +564,7 @@ public class KCPContext {
     /**
      * 更新发送窗口内的最小未确认序列号
      */
-    private void shrinkBuff() {
+    private void updateSendUnacknowledgedSegmentId() {
         if (!sendBuff.isEmpty()) {
             KCPSegment segment = this.sendBuff.getFirst();
             this.sendUnacknowledgedSegmentId = segment.getSegmentId();
@@ -576,7 +578,7 @@ public class KCPContext {
      *
      * @param rtt 消息来回花费时间
      */
-    private void updateAck(int rtt) {
+    private void updateRTTInfo(int rtt) {
         int rto;
         // 如果平滑RTT (rx_sRtt) 是 0，直接设置为当前的RTT
         if (this.smoothRtti == 0) {
@@ -606,20 +608,20 @@ public class KCPContext {
     /**
      * 根据确认Id移除已确认的 segment
      *
-     * @param segmentId 确认Id
+     * @param acknowledgedSegmentId 确认Id
      */
-    private void parseAck(long segmentId) {
-        if (segmentId - this.sendUnacknowledgedSegmentId < 0 || segmentId - this.nextSendSegmentId >= 0) {
+    private void removeSegmentFromSendBuffByAcknowledgedSegmentId(int acknowledgedSegmentId) {
+        if (acknowledgedSegmentId - this.sendUnacknowledgedSegmentId < 0 || acknowledgedSegmentId - this.nextSendSegmentId >= 0) {
             return;
         }
         Iterator<KCPSegment> it = this.sendBuff.iterator();
         while (it.hasNext()) {
             KCPSegment seg = it.next();
-            if (seg.getSegmentId() == segmentId) {
+            if (seg.getSegmentId() == acknowledgedSegmentId) {
                 it.remove();
                 break;
             }
-            if (segmentId - seg.getSegmentId() < 0) {
+            if (acknowledgedSegmentId - seg.getSegmentId() < 0) {
                 break;
             }
         }
@@ -631,7 +633,7 @@ public class KCPContext {
      * @param segmentId 分片Id
      * @param timeStamp 发送的时间戳
      */
-    private void pushAck(int segmentId, long timeStamp) {
+    private void pushAcknowledgedInfo(int segmentId, long timeStamp) {
         KCPACKInfo item = new KCPACKInfo(segmentId, timeStamp);
         ackList.add(item);
     }
