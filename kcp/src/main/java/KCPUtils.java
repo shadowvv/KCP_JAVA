@@ -1,25 +1,31 @@
 public class KCPUtils {
 
     /**
-     * 推送数据
+     * 推送数据命令
      */
     public static final int KCP_CMD_PUSH = 81;
     /**
-     * 推送ack信息
+     * 推送ack信息命令
      */
     public static final int KCP_CMD_ACK = 82;
     /**
-     * 请求窗口大小
+     * 请求窗口大小命令
      */
     public static final int KCP_CMD_WINDOW_ASK = 83;
     /**
-     * 通知窗口大小
+     * 通知窗口大小命令
      */
     public static final int KCP_CMD_WINDOW_SIZE = 84;
 
 
-    public static final int KCP_RTO_NDL = 30;               // no delay min rto
-    public static final int KCP_RTO_MIN = 100;              // normal min rto
+    /**
+     * no delay min rto
+     */
+    public static final int KCP_RTO_NO_DELAY_MIN = 30;
+    /**
+     * normal min rto
+     */
+    public static final int KCP_RTO_MIN = 100;
     public static final int KCP_RTO_DEF = 200;
     public static final int KCP_RTO_MAX = 60000;
 
@@ -33,9 +39,18 @@ public class KCPUtils {
     public static final int KCP_DEAD_LINK = 20;
     public static final int KCP_THRESH_INIT = 2;
     public static final int KCP_THRESH_MIN = 2;
-    public static final int KCP_PROBE_INIT = 7000;          // 7 secs to probe window size
-    public static final int KCP_PROBE_LIMIT = 120000;       // up to 120 secs to probe window
-    public static final int KCP_FAST_ACK_LIMIT = 5;         // max times to trigger fastack
+    /**
+     * 7 secs to probe window size
+     */
+    public static final int KCP_PROBE_INIT = 7000;
+    /**
+     * up to 120 secs to probe window
+     */
+    public static final int KCP_PROBE_LIMIT = 120000;
+    /**
+     *  max times to trigger fast ack
+     */
+    public static final int KCP_FAST_ACK_LIMIT = 5;
 
     public static final int KCP_LOG_OUTPUT = 1;
     public static final int KCP_LOG_INPUT = 2;
@@ -56,10 +71,7 @@ public class KCPUtils {
 
     public static final int KCP_OPERATION_SUCCESS = 0;
     public static final int KCP_ERROR_NO_DATA = -1;
-    public static final int KCP_ERROR_SEGMENT_NOT_COMPLETE = -2;
-    public static final int KCP_ERROR_NOT_ENOUGH_BUFFER = -3;
-    public static final int KCP_ERROR_ARGUMENT_INVALID = -4;
-    public static final int KCP_ERROR_OVER_RCV_WINDOW = -5;
+    public static final int KCP_ERROR_INVALID_DATA_LENGTH = -4;
     public static final int KCP_ERROR_DATA_SIZE_WRONG = -6;
     public static final int KCP_ERROR_CONVERSATION_WRONG = -7;
     public static final int KCP_ERROR_CMD_WRONG = -8;

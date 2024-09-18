@@ -32,7 +32,7 @@ public class KCPTest implements IKCPContext {
     }
 
     public KCPContext buildTestObject(int conversionId, Object user) {
-        KCPContext context = new KCPContext();
+        KCPContext context = new KCPContext(conversionId,user,this);
         context.setConversationId(conversionId);
         context.setUser(user);
 

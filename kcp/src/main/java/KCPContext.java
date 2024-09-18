@@ -9,67 +9,201 @@ public class KCPContext {
     private boolean fastAckConserve = true;
 
     //基本参数
-    private int conversationId;//会话ID
-    private int MTU;//最大传输单元
-    private int MSS;//最大分片大小
-    private int state;//当前状态
+    /**
+     *
+     */
+    private int conversationId;
+    /**
+     * 最大传输单元
+     */
+    private int MTU;
+    /**
+     * 最大分片大小
+     */
+    private int MSS;
+    /**
+     * 当前状态
+     */
+    private int state;
 
-    //序号和窗口管理
-    private int sendUnacknowledgedSegmentId;//未确认的最小发送序号
-    private int nextSendSegmentId;//下一个要发送的数据序号
-    private int nextReceiveSegmentId;//下一个期望接收的数据序号
-    private int sendWindow;//发送窗口大小，用于控制发送方能发送多少未确认的包。
-    private int receiveWindow;//接收窗口大小，表示接收方的缓冲区剩余空间
-    private int remoteWindow;//远端窗口大小，即对端能接收的窗口大小。
-    private int crowdedWindow;//拥塞窗口大小，用于控制拥塞避免算法。
-
-    //计时和重传管理
-    private long lastSendTimeStamp;//最近一次发送的时间戳
-    private long lastACKTimeStamp;//最近一次接收到的ACK包的时间戳
-    private int slowStartThresh;//慢启动阈值，用于拥塞控制
-    private long rttVal;//RTT波动值（Round Trip Time Variation），用于计算RTO（重传超时）
-    private long smoothRtti;//平滑的RTT（Smoothed RTT），表示RTT的均值。
-    private int currentRTO;//当前的重传超时时间（Retransmission Timeout）。
-    private int minRto;//最小重传超时时间，表示RTO的下限。
-    private long nextFlushTimeStamp;//定时刷新时间戳，用于周期性发送数据。
-
-    //定时器和探测
-    private long current;//当前时间戳
-    private int interval;//定时器触发间隔，用于刷新和检查是否需要发送包。
-    private long nextProbeTimeStamp;//下一次探测时间戳，用于检测对端窗口大小。
-    private int probeWait;//探测等待时间，当远端窗口为0时，发送探测包的间隔时间。
-    private int probe;//探测标志位，表示是否需要发送窗口探测包。
-
-    //统计信息
-    private int sendCount;//发送数据包的总次数。
-
-    //控制和策略
-    private int noDelay;//是否启用无延迟模式。无延迟模式下，发送更快但可能导致网络波动。
-    private boolean updated;//是否已经调用了update函数。用于确定KCP的初始化状态。
-    private int deadLink;//死链检测，表示经过多少次未收到ACK后认为连接断开。
-    private int incr;//可增加的字节数，用于控制拥塞窗口的增长。
+    //序号
+    /**
+     * 未确认的最小发送序号
+     */
+    private int sendUnacknowledgedSegmentId;
+    /**
+     * 下一个要发送的数据序号
+     */
+    private int nextSendSegmentId;
+    /**
+     * 下一个期望接收的数据序号
+     */
+    private int nextReceiveSegmentId;
 
     //队列和缓冲区
-    private LinkedList<KCPSegment> sendQueue;//发送队列，存储还未发送的Segment。
-    private LinkedList<KCPSegment> receiveQueue;//接收队列，存储已接收但未处理的Segment。
-    private LinkedList<KCPSegment> sendBuff;//发送缓冲区，存储已发送但未确认的Segment。
-    private LinkedList<KCPSegment> receiveBuff;//接收缓冲区，存储乱序接收到的Segment。
+    /**
+     * 发送队列，存储还未发送的Segment。
+     */
+    private LinkedList<KCPSegment> sendQueue;
+    /**
+     * 接收队列，存储已接收但未处理的Segment。
+     */
+    private LinkedList<KCPSegment> receiveQueue;
+    /**
+     * 发送缓冲区，存储已发送但未确认的Segment。
+     */
+    private LinkedList<KCPSegment> sendBuff;
+    /**
+     * 接收缓冲区，存储乱序接收到的Segment。
+     */
+    private LinkedList<KCPSegment> receiveBuff;
 
     //ACK管理
-    private List<KCPACKInfo> ackList;//保存待发送的ACK序号和时间戳的列表。
+    /**
+     * 保存待发送的ACK序号和时间戳的列表。
+     */
+    private List<KCPACKInfo> ackList;
+
+    //窗口管理
+    /**
+     * 发送窗口大小，用于控制发送方能发送多少未确认的包。
+     */
+    private int sendWindow;
+    /**
+     * 接收窗口大小，表示接收方的缓冲区剩余空间
+     */
+    private int receiveWindow;
+    /**
+     * 拥塞窗口大小，用于控制拥塞避免算法。
+     */
+    private int crowdedWindow;
+    /**
+     * 远端窗口大小，即对端能接收的窗口大小。
+     */
+    private int remoteWindow;
+    /**
+     * 探测标志位，表示是否需要发送窗口探测包。
+     */
+    private int probe;
+
+    //计时和重传管理
+    /**
+     * 当前时间戳
+     */
+    private long current;
+    /**
+     * 定时器触发间隔，用于刷新和检查是否需要发送包。
+     */
+    private int interval;
+    /**
+     * 最近一次发送的时间戳
+     */
+    private long lastSendTimeStamp;
+    /**
+     * 最近一次接收到的ACK包的时间戳
+     */
+    private long lastACKTimeStamp;
+    /**
+     * 定时刷新时间戳，用于周期性发送数据。
+     */
+    private long nextFlushTimeStamp;
+    /**
+     * 下一次探测时间戳，用于检测对端窗口大小。
+     */
+    private long nextProbeTimeStamp;
+    /**
+     * 探测等待时间，当远端窗口为0时，发送探测包的间隔时间。
+     */
+    private int probeWait;
+    /**
+     * 慢启动阈值，用于拥塞控制
+     */
+    private int slowStartThresh;
+    /**
+     * RTT波动值（Round Trip Time Variation），用于计算RTO（重传超时）
+     */
+    private int rttVal;
+    /**
+     * 平滑的RTT（Smoothed RTT），表示RTT的均值。
+     */
+    private int smoothRtti;
+    /**
+     * 当前的重传超时时间（Retransmission Timeout）。
+     */
+    private int currentRTO;
+    /**
+     * 最小重传超时时间，表示RTO的下限。
+     */
+    private int minRto;
+
+    //控制和策略
+    /**
+     * 是否启用无延迟模式。无延迟模式下，发送更快但可能导致网络波动。
+     */
+    private int noDelay;
+    /**
+     * 是否已经调用了update函数。用于确定KCP的初始化状态。
+     */
+    private boolean updated;
+    /**
+     * 死链检测，表示经过多少次未收到ACK后认为连接断开。
+     */
+    private int deadLink;
+    /**
+     * 可增加的字节数，用于控制拥塞窗口的增长。
+     */
+    private int incr;
+    /**
+     * 发送数据包的总次数。
+     */
+    private int sendCount;
 
     //其他
-    private Object user;//用户数据
-    private ByteBuffer buffer;//缓冲区，通常用于临时存储需要发送的数据。
-    private int fastResend;//快速重传参数，当某个包被跳过多次ACK时会触发快速重传。
-    private int fastLimit;//限制快速重传的最大次数，超过此次数的包不会继续快速重传。
-    private boolean isNoCrowdedWindow;//是否禁用拥塞窗口控制，禁用后发送速度只受限于接收窗口。
-    private boolean isStream;//流模式控制，决定是否按顺序处理数据。
-    private int logMask;//日志掩码，用于控制日志输出的类别。
+    /**
+     * 缓冲区，通常用于临时存储需要发送的数据。
+     */
+    private ByteBuffer buffer;
+    /**
+     * 快速重传参数，当某个包被跳过多次ACK时会触发快速重传。
+     */
+    private int fastResend;
+    /**
+     * 限制快速重传的最大次数，超过此次数的包不会继续快速重传。
+     */
+    private int fastLimit;
+    /**
+     * 是否禁用拥塞窗口控制，禁用后发送速度只受限于接收窗口。
+     */
+    private boolean isNoCrowdedWindow;
+    /**
+     * 流模式控制，决定是否按顺序处理数据。
+     */
+    private boolean isStream;
+    /**
+     * 日志掩码，用于控制日志输出的类别。
+     */
+    private int logMask;
 
-    private IKCPContext IKCPContext;//回调方法
+    /**
+     * 用户数据
+     */
+    private Object user;
+    /**
+     * 用户回调方法
+     */
+    private IKCPContext IKCPContext;
 
-    public KCPContext() {
+    /**
+     *
+     * @param conversationId 会话ID
+     * @param user 用户数据
+     * @param IKCPContext 用户回调方法
+     */
+    public KCPContext(int conversationId, Object user, IKCPContext IKCPContext) {
+        this.conversationId = conversationId;
+        this.user = user;
+        this.IKCPContext = IKCPContext;
+
         this.sendQueue = new LinkedList<>();
         this.receiveQueue = new LinkedList<>();
         this.sendBuff = new LinkedList<>();
@@ -77,6 +211,9 @@ public class KCPContext {
         this.ackList = new ArrayList<>();
     }
 
+    /**
+     * 释放数据
+     */
     public void release() {
         this.sendQueue.clear();
         this.receiveQueue.clear();
@@ -97,11 +234,11 @@ public class KCPContext {
 
         assert (this.MSS > 0);
         if (length <= 0) {
-            return KCPUtils.KCP_ERROR_ARGUMENT_INVALID;
+            throw new KCPInvalidDataLengthException("length <= 0",this);
         }
 
         int sent = 0;
-        // append to previous segment in streaming mode (if possible)
+        //如果为流式数据,尝试补满数据
         if (this.isStream) {
             if (!this.sendQueue.isEmpty()) {
                 KCPSegment old = this.sendQueue.getLast();
@@ -125,6 +262,7 @@ public class KCPContext {
             }
         }
 
+        //计算分片拆分数量
         int count;
         if (length <= this.MSS) {
             count = 1;
@@ -135,14 +273,14 @@ public class KCPContext {
             if (this.isStream && sent > 0) {
                 return sent;
             } else {
-                return KCPUtils.KCP_ERROR_OVER_RCV_WINDOW;
+                throw new KCPOverReceiveWindowException("segment count over receive window",this);
             }
         }
         if (count == 0) {
             count = 1;
         }
 
-        // fragment
+        //根据拆分数量初始化分片数据
         for (int i = 0; i < count; i++) {
             int size = Math.min(length, this.MSS);
             KCPSegment segment = new KCPSegment(size);
@@ -175,26 +313,29 @@ public class KCPContext {
             length = -length;
         }
 
-        int peekSize = getPeekSize();
-        if (peekSize < KCPUtils.KCP_OPERATION_SUCCESS) {
-            return peekSize;
-        }
-        if (peekSize > length) {
-            return KCPUtils.KCP_ERROR_NOT_ENOUGH_BUFFER;
+        //检测下一个分片数据大小跟接收缓冲区大小
+        int nextDataLength = getNextSegmentDataLength();
+        if (nextDataLength < KCPUtils.KCP_OPERATION_SUCCESS) {
+            return nextDataLength;
         }
 
+        if (nextDataLength > length) {
+            throw new KCPBufferLengthIsNotEnoughException("the buffer length is not enough",this);
+        }
+
+        //是否需要通知远端当前接收窗口大小,当receiveQueue大小从大于接收窗口变为小于接收窗口时通知。
         boolean recover = this.receiveQueue.size() >= this.receiveWindow;
 
-        // merge fragment
-        int peekLength = 0;
+        //拼接分片数据
+        int dataLength = 0;
         Iterator<KCPSegment> iterator = this.receiveQueue.iterator();
         while (iterator.hasNext()) {
             KCPSegment segment = iterator.next();
             buffer.put(segment.getData(), 0, segment.getLength());
-            peekLength += segment.getLength();
+            dataLength += segment.getLength();
 
             if (canLog(KCPUtils.KCP_LOG_REC)) {
-                writeLog(KCPUtils.KCP_LOG_REC, "recv sn=%d", segment.getSegmentId());
+                writeLog(KCPUtils.KCP_LOG_REC, "receive sn=%d", segment.getSegmentId());
             }
 
             if (!isPeek) {
@@ -205,9 +346,9 @@ public class KCPContext {
                 break;
             }
         }
-        assert (peekLength == peekSize);
+        assert (dataLength == nextDataLength);
 
-        // move available data from receiveBuff -> receiveQueue
+        // 移动下一个分表数据 receiveBuff -> receiveQueue.根据接收窗口大小，可能只会移动下一个分片的部分数据
         Iterator<KCPSegment> bufferIterator = this.receiveBuff.iterator();
         while (bufferIterator.hasNext()) {
             KCPSegment segment = bufferIterator.next();
@@ -227,22 +368,19 @@ public class KCPContext {
             this.probe |= KCPUtils.KCP_ASK_TELL;
         }
 
-        return peekLength;
+        return dataLength;
     }
 
     /**
      * @return 下一个完整消息的总长度
      */
-    private int getPeekSize() {
-        if (this.receiveQueue.isEmpty()) {
-            return KCPUtils.KCP_ERROR_NO_DATA;
-        }
+    private int getNextSegmentDataLength() {
         KCPSegment segment = this.receiveQueue.getFirst();
         if (segment.getFragmentId() == KCPUtils.KCP_FINAL_FRAGMENT_ID) {
             return segment.getLength();
         }
         if (this.receiveQueue.size() < segment.getFragmentId() + 1) {
-            return KCPUtils.KCP_ERROR_SEGMENT_NOT_COMPLETE;
+            throw new KCPReceiveQueueNextSegmentNotComplete("receive queue next segment is not complete",this,segment.getSegmentId());
         }
 
         int length = 0;
@@ -258,23 +396,24 @@ public class KCPContext {
      * 接收数据
      *
      * @param buffer 数据buff
-     * @param size   接受数据长度
+     * @param length   接受数据长度
      * @return 返回操作是否成功，小于0代表返回错误
      */
-    public int input(ByteBuffer buffer, int size) {
+    public int input(ByteBuffer buffer, int length) {
         long prevUnacknowledgedId = this.sendUnacknowledgedSegmentId;
         long maxAck = 0;
         long lastTimeStamp = 0;
         int flag = 0;
 
-        if (canLog(KCPUtils.KCP_LOG_INPUT)) {
-            writeLog(KCPUtils.KCP_LOG_INPUT, "[RI] %d bytes", size);
-        }
-        if (size < KCPSegment.KCP_OVERHEAD) {
-            return KCPUtils.KCP_ERROR_DATA_SIZE_WRONG;
+        if (length < KCPSegment.KCP_OVERHEAD) {
+            throw new KCPBufferDataNotEnoughToReceiveException("the buffer length is not enough to receive",this);
         }
 
-        while (size >= KCPSegment.KCP_OVERHEAD) {
+        if (canLog(KCPUtils.KCP_LOG_INPUT)) {
+            writeLog(KCPUtils.KCP_LOG_INPUT, "[RI] %d bytes", length);
+        }
+
+        while (length >= KCPSegment.KCP_OVERHEAD) {
 
             int conversationId = buffer.getInt();
             if (conversationId != this.conversationId) {
@@ -287,10 +426,10 @@ public class KCPContext {
             long timeStamp = buffer.getLong();
             int unacknowledgedNumber = buffer.getInt();
             int windowSize = buffer.getInt();
-            int length = buffer.getInt();
+            int segmentLength = buffer.getInt();
 
-            size -= KCPSegment.KCP_OVERHEAD;
-            if (size < length) {
+            length -= KCPSegment.KCP_OVERHEAD;
+            if (length < segmentLength) {
                 return KCPUtils.KCP_ERROR_DATA_SIZE_WRONG;
             }
             if (commandId != KCPUtils.KCP_CMD_PUSH && commandId != KCPUtils.KCP_CMD_ACK
@@ -305,7 +444,7 @@ public class KCPContext {
             switch (commandId) {
                 case KCPUtils.KCP_CMD_ACK: {
                     if (this.current - timeStamp >= 0) {
-                        updateAck(this.current - timeStamp);
+                        updateAck((int) (this.current - timeStamp));
                     }
                     this.parseAck(segmentId);
                     this.shrinkBuff();
@@ -337,7 +476,7 @@ public class KCPContext {
                     if (segmentId - (this.nextReceiveSegmentId + this.receiveWindow) < 0) {
                         this.pushAck(segmentId, timeStamp);
                         if (segmentId - this.nextReceiveSegmentId >= 0) {
-                            KCPSegment segment = new KCPSegment(length);
+                            KCPSegment segment = new KCPSegment(segmentLength);
                             segment.setConversationId(conversationId);
                             segment.setCommandId(commandId);
                             segment.setFragmentId(fragmentId);
@@ -345,8 +484,8 @@ public class KCPContext {
                             segment.setTimeStamp(timeStamp);
                             segment.setSegmentId(segmentId);
                             segment.setUnacknowledgedSegmentId(unacknowledgedNumber);
-                            if (length > 0) {
-                                buffer.get(segment.getData(), 0, length);
+                            if (segmentLength > 0) {
+                                buffer.get(segment.getData(), 0, segmentLength);
                             }
                             this.parseData(segment);
                         }
@@ -369,7 +508,7 @@ public class KCPContext {
                 default:
                     return KCPUtils.KCP_ERROR_CMD_WRONG;
             }
-            size -= length;
+            length -= segmentLength;
         }
 
         if (flag != 0) {
@@ -434,7 +573,7 @@ public class KCPContext {
      *
      * @param rtt 消息来回花费时间
      */
-    private void updateAck(long rtt) {
+    private void updateAck(int rtt) {
         int rto;
         // 如果平滑RTT (rx_sRtt) 是 0，直接设置为当前的RTT
         if (this.smoothRtti == 0) {
@@ -897,7 +1036,7 @@ public class KCPContext {
 
     public int setMTU(int mtu) {
         if (mtu < 50 || mtu < KCPSegment.KCP_OVERHEAD) {
-            return KCPUtils.KCP_ERROR_ARGUMENT_INVALID;
+            return KCPUtils.KCP_ERROR_INVALID_DATA_LENGTH;
         }
         ByteBuffer buffer = ByteBuffer.allocate((mtu + KCPSegment.KCP_OVERHEAD) * 3);
         this.MTU = mtu;
@@ -919,18 +1058,11 @@ public class KCPContext {
         return this.sendBuff.size() + this.sendQueue.size();
     }
 
-    /**
-     *
-     * @param noDelay
-     * @param interval
-     * @param reSend
-     * @param isNoCrowdedWindow
-     */
     public void setNoDelay(int noDelay, int interval, int reSend, boolean isNoCrowdedWindow) {
         if (noDelay >= 0) {
             this.noDelay = noDelay;
             if (noDelay != 0) {
-                this.minRto = KCPUtils.KCP_RTO_NDL;
+                this.minRto = KCPUtils.KCP_RTO_NO_DELAY_MIN;
             } else {
                 this.minRto = KCPUtils.KCP_RTO_MIN;
             }
@@ -1054,19 +1186,19 @@ public class KCPContext {
         this.slowStartThresh = slowStartThresh;
     }
 
-    public long getRttVal() {
+    public int getRttVal() {
         return rttVal;
     }
 
-    public void setRttVal(long rttVal) {
+    public void setRttVal(int rttVal) {
         this.rttVal = rttVal;
     }
 
-    public long getSmoothRtti() {
+    public int getSmoothRtti() {
         return smoothRtti;
     }
 
-    public void setSmoothRtti(long smoothRtti) {
+    public void setSmoothRtti(int smoothRtti) {
         this.smoothRtti = smoothRtti;
     }
 
