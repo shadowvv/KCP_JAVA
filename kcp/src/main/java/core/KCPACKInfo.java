@@ -1,3 +1,5 @@
+package core;
+
 /**
  * KCP 确认数据
  * @param segmentId 序号

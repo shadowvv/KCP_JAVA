@@ -1,3 +1,7 @@
+package exception;
+
+import core.KCPContext;
+
 /**
  * 数据长度异常
  */

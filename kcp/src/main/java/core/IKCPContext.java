@@ -1,3 +1,5 @@
+package core;
+
 /**
  * kcp上层逻辑调用接口
  */
