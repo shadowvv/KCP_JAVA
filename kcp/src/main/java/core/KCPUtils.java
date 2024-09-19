@@ -53,6 +53,10 @@ public class KCPUtils {
      *  max times to trigger fast ack
      */
     public static final int KCP_FAST_ACK_LIMIT = 5;
+    public static final int KCP_MAX_UPDATE_SLAP = 10000;
+    public static final int KCP_MAX_UPDATE_INTERVAL = 5000;
+    public static final int KCP_MIN_UPDATE_INTERVAL = 10;
+    public static final int KCP_MIN_MTU = 50;
 
     public static final int KCP_LOG_OUTPUT = 1;
     public static final int KCP_LOG_INPUT = 2;
@@ -73,9 +77,5 @@ public class KCPUtils {
 
     public static final int KCP_OPERATION_SUCCESS = 0;
     public static final int KCP_ERROR_NO_DATA = -1;
-    public static final int KCP_ERROR_INVALID_DATA_LENGTH = -4;
-    public static final int KCP_ERROR_DATA_SIZE_WRONG = -6;
-    public static final int KCP_ERROR_CONVERSATION_WRONG = -7;
-    public static final int KCP_ERROR_CMD_WRONG = -8;
 
 }

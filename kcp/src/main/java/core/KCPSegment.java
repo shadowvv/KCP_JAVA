@@ -50,7 +50,7 @@ public class KCPSegment {
     /**
      * 快速确认标志，标识收到的确认数
      */
-    private int fastAck;
+    private int fastAcknowledgedCount;
     /**
      * 发送次数
      */
@@ -67,6 +67,14 @@ public class KCPSegment {
      */
     public KCPSegment(int length) {
         data = new byte[length];
+    }
+
+    /**
+     *
+     * @param data 数据
+     */
+    public KCPSegment(byte[] data) {
+        this.data = data;
     }
 
     /**
@@ -173,12 +181,12 @@ public class KCPSegment {
         this.RTO = RTO;
     }
 
-    public int getFastAck() {
-        return fastAck;
+    public int getFastAcknowledgedCount() {
+        return fastAcknowledgedCount;
     }
 
-    public void setFastAck(int fastAck) {
-        this.fastAck = fastAck;
+    public void setFastAcknowledgedCount(int fastAcknowledgedCount) {
+        this.fastAcknowledgedCount = fastAcknowledgedCount;
     }
 
     public int getSendCount() {
@@ -195,5 +203,14 @@ public class KCPSegment {
 
     public void setData(byte[] data) {
         this.data = data;
+    }
+
+    @Override
+    public String toString() {
+        return "KCPSegment [conversationId=" + conversationId + ", segmentId=" + segmentId
+                + ", fragmentId=" + fragmentId + ", commandId=" + commandId + ", timeStamp=" + timeStamp
+                + ", unacknowledgedSegmentId=" + unacknowledgedSegmentId
+                + ", windowSize=" + windowSize + ", resendTimeStamp=" + resendTimeStamp
+                + ", RTO=" + RTO + ", fastAck=" + fastAcknowledgedCount + ", sendCount=" + sendCount + "]";
     }
 }

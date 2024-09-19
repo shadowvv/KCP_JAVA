@@ -26,6 +26,7 @@ public class KCPContext {
     private int MSS;
     /**
      * 当前状态
+     * TODO:当前没有作用
      */
     private int state;
 
@@ -156,10 +157,6 @@ public class KCPContext {
      * 可增加的字节数，用于控制拥塞窗口的增长。
      */
     private int incr;
-    /**
-     * 发送数据包的总次数。
-     */
-    private int sendCount;
 
     //其他
     /**
@@ -412,7 +409,7 @@ public class KCPContext {
             writeLog(KCPUtils.KCP_LOG_INPUT, "[RI] %d bytes", length);
         }
 
-        int prevUnacknowledgedId = this.sendUnacknowledgedSegmentId;
+        int prevUnacknowledgedSegmentId = this.sendUnacknowledgedSegmentId;
         int maxAckSegmentId = 0;
         long lastAckSegmentTimeStamp = 0;
         boolean needFastAck = false;
@@ -478,10 +475,14 @@ public class KCPContext {
                     if (canLog(KCPUtils.KCP_LOG_IN_DATA)) {
                         writeLog(KCPUtils.KCP_LOG_IN_DATA, "input psh: sn=%d ts=%d", segmentId, timeStamp);
                     }
+                    byte[] data = new byte[segmentLength];
+                    buffer.get(data, 0, segmentLength);
+                    //接收的segment没有超过receive window
                     if (segmentId - (this.nextReceiveSegmentId + this.receiveWindow) < 0) {
                         this.pushAcknowledgedInfo(segmentId, timeStamp);
+                        //接收的segment比需要接收的segmentId大
                         if (segmentId - this.nextReceiveSegmentId >= 0) {
-                            KCPSegment segment = new KCPSegment(segmentLength);
+                            KCPSegment segment = new KCPSegment(data);
                             segment.setConversationId(conversationId);
                             segment.setCommandId(commandId);
                             segment.setFragmentId(fragmentId);
@@ -489,10 +490,8 @@ public class KCPContext {
                             segment.setTimeStamp(timeStamp);
                             segment.setSegmentId(segmentId);
                             segment.setUnacknowledgedSegmentId(unacknowledgedNumber);
-                            if (segmentLength > 0) {
-                                buffer.get(segment.getData(), 0, segmentLength);
-                            }
-                            this.parseData(segment);
+                            //向receive queue中插入数据
+                            this.insertSegment(segment);
                         }
                     }
                     break;
@@ -511,26 +510,31 @@ public class KCPContext {
                     break;
                 }
                 default:
-                    return KCPUtils.KCP_ERROR_CMD_WRONG;
+                    throw new KCPDataHeadWrongCommandIdException("data head has wrong command id",this);
             }
             length -= segmentLength;
         }
 
         if (needFastAck) {
-            parseFastAck(maxAckSegmentId, lastAckSegmentTimeStamp);
+            updateFastAcknowledgedCount(maxAckSegmentId, lastAckSegmentTimeStamp);
         }
-        //拥塞控制
-        if (this.sendUnacknowledgedSegmentId - prevUnacknowledgedId > 0) {
+
+        //拥塞控制,更新拥挤窗口大小。
+        if (this.sendUnacknowledgedSegmentId - prevUnacknowledgedSegmentId > 0) {
             if (this.crowdedWindow < this.remoteWindow) {
                 int mss = this.MSS;
+                //慢启动阶段
                 if (this.crowdedWindow < this.slowStartThresh) {
                     this.crowdedWindow++;
                     this.incr += mss;
                 } else {
+                    //拥塞避免阶段
                     if (this.incr < mss) {
                         this.incr = mss;
                     }
+                    //拥塞窗口以渐进的方式增大
                     this.incr = this.incr + ((mss * mss) / this.incr + (mss / 16));
+                    //增量足够大，crowdedWindow 会相应增加
                     if ((this.crowdedWindow + 1) * mss <= this.incr) {
                         this.crowdedWindow = (this.incr + mss - 1) / ((mss > 0) ? mss : 1);
                     }
@@ -639,19 +643,15 @@ public class KCPContext {
     }
 
     /**
-     * 装配数据
+     * 插入数据
      *
      * @param segment 数据分片
      */
-    private void parseData(KCPSegment segment) {
+    private void insertSegment(KCPSegment segment) {
         int segmentId = segment.getSegmentId();
         boolean repeat = false;
-
-        if (segmentId - (this.nextReceiveSegmentId + this.receiveWindow) >= 0 || segmentId - this.nextReceiveSegmentId < 0) {
-            return;
-        }
-
         boolean find = false;
+        //按照segmentId插入segment
         ListIterator<KCPSegment> it = this.receiveBuff.listIterator(this.receiveBuff.size());
         while (it.hasPrevious()) {
             KCPSegment tempSegment = it.previous();
@@ -666,11 +666,11 @@ public class KCPContext {
                 break;
             }
         }
-
         if (!repeat && !find) {
             this.receiveBuff.addFirst(segment);
         }
 
+        //移动receive buff到receive queue
         while (!this.receiveBuff.isEmpty()) {
             KCPSegment tempSegment = this.receiveBuff.getFirst();
             if (tempSegment.getSegmentId() == this.nextReceiveSegmentId && this.receiveQueue.size() < this.receiveWindow) {
@@ -689,7 +689,7 @@ public class KCPContext {
      * @param segmentId 分片id
      * @param timeStamp 时间戳
      */
-    private void parseFastAck(long segmentId, long timeStamp) {
+    private void updateFastAcknowledgedCount(long segmentId, long timeStamp) {
         if (segmentId - this.sendUnacknowledgedSegmentId < 0 || segmentId - this.nextSendSegmentId >= 0) {
             return;
         }
@@ -698,40 +698,28 @@ public class KCPContext {
                 break;
             } else if (segmentId != segment.getSegmentId()) {
                 if (!fastAckConserve) {
-                    segment.setFastAck(segment.getFastAck() + 1);
+                    segment.setFastAcknowledgedCount(segment.getFastAcknowledgedCount() + 1);
                 }
                 if (timeStamp - segment.getTimeStamp() >= 0) {
-                    segment.setFastAck(segment.getFastAck() + 1);
+                    segment.setFastAcknowledgedCount(segment.getFastAcknowledgedCount() + 1);
                 }
             }
         }
     }
 
     /**
-     * 获得剩余窗口大小
-     *
-     * @return 剩余窗口大小
-     */
-    private int getWindowUnused() {
-        if (this.receiveQueue.size() < this.receiveWindow) {
-            return this.receiveWindow - this.receiveQueue.size();
-        }
-        return 0;
-    }
-
-    /**
-     * update state (call it repeatedly, every 10ms-100ms), or you can ask check when to call it again (without input/_send calling).
-     * @param current current timestamp in timeMillis
+     * 更新KCP状态（重复调用，每 10ms-100ms 调用一次），也可以询问检查何时再次调用（无 input/send 调用）。
+     * @param current 当前毫秒时间
      */
     public void update(long current) {
-        long slap;
         this.current = current;
         if (!this.updated) {
             this.updated = true;
             this.nextFlushTimeStamp = this.current;
         }
-        slap = this.current - this.nextFlushTimeStamp;
-        if (slap >= 10000 || slap < -10000) {
+
+        long slap = this.current - this.nextFlushTimeStamp;
+        if (slap >= KCPUtils.KCP_MAX_UPDATE_SLAP || slap < -KCPUtils.KCP_MAX_UPDATE_SLAP) {
             this.nextFlushTimeStamp = this.current;
             slap = 0;
         }
@@ -744,40 +732,12 @@ public class KCPContext {
         }
     }
 
-    /**
-     * flush
-     */
     private void flush() {
 
         if (!this.updated)
             return;
 
         long current = this.current;
-        int change = 0;
-        int lost = 0;
-
-        KCPSegment templateSegment = new KCPSegment(0);
-        templateSegment.setConversationId(this.conversationId);
-        templateSegment.setCommandId(KCPUtils.KCP_CMD_ACK);
-        templateSegment.setFragmentId(0);
-        templateSegment.setWindowSize(this.getWindowUnused());
-        templateSegment.setUnacknowledgedSegmentId(this.nextReceiveSegmentId);
-        templateSegment.setSegmentId(0);
-        templateSegment.setTimeStamp(0);
-
-        // flush acknowledges
-        int count = this.ackList.size();
-        for (int i = 0; i < count; i++) {
-            int size = buffer.position();
-            if (size + KCPSegment.KCP_OVERHEAD > this.MTU) {
-                buffer.flip();
-                this.output(buffer, size);
-                buffer.clear();
-            }
-            this.getAck(i, templateSegment);
-            templateSegment.encodeHead(buffer);
-        }
-        this.ackList.clear();
 
         // probe window size (if remote window size equals zero)
         if (this.remoteWindow == 0) {
@@ -802,38 +762,35 @@ public class KCPContext {
             this.probeWait = 0;
         }
 
+        KCPSegment templateSegment = new KCPSegment(0);
+        templateSegment.setConversationId(this.conversationId);
+        templateSegment.setCommandId(KCPUtils.KCP_CMD_ACK);
+        templateSegment.setFragmentId(KCPUtils.KCP_FINAL_FRAGMENT_ID);
+        templateSegment.setWindowSize(this.getWindowUnused());
+        templateSegment.setUnacknowledgedSegmentId(this.nextReceiveSegmentId);
+        templateSegment.setSegmentId(0);
+        templateSegment.setTimeStamp(0);
+
+        // flush acknowledges
+        flushAcknowledges(templateSegment);
+
         // flush window probing commands
         if ((this.probe & KCPUtils.KCP_ASK_SEND) != 0) {
-            templateSegment.setCommandId(KCPUtils.KCP_CMD_WINDOW_ASK);
-            int size = buffer.position();
-            if (size + KCPSegment.KCP_OVERHEAD > this.MTU) {
-                buffer.flip();
-                this.output(buffer, size);
-                buffer.clear();
-            }
-            templateSegment.encodeHead(buffer);
+            flushWindowProbeCommand(KCPUtils.KCP_CMD_WINDOW_ASK,templateSegment);
         }
-
         if ((this.probe & KCPUtils.KCP_ASK_TELL) != 0) {
-            templateSegment.setCommandId(KCPUtils.KCP_CMD_WINDOW_SIZE);
-            int size = buffer.position();
-            if (size + KCPSegment.KCP_OVERHEAD > this.MTU) {
-                buffer.flip();
-                this.output(buffer, size);
-                buffer.clear();
-            }
-            templateSegment.encodeHead(buffer);
+            flushWindowProbeCommand(KCPUtils.KCP_CMD_WINDOW_SIZE,templateSegment);
         }
         this.probe = 0;
 
         // calculate window size
-        int cwnd = Math.min(this.sendWindow, this.remoteWindow);
+        int windowSize = Math.min(this.sendWindow, this.remoteWindow);
         if (!this.isNoCrowdedWindow) {
-            cwnd = Math.min(this.crowdedWindow, cwnd);
+            windowSize = Math.min(this.crowdedWindow, windowSize);
         }
 
-        // move data from snd_queue to snd_buf
-        while (this.nextSendSegmentId - (this.sendUnacknowledgedSegmentId + cwnd) < 0) {
+        // move data from sendQueue to sendBuff
+        while (this.nextSendSegmentId - (this.sendUnacknowledgedSegmentId + windowSize) < 0) {
             if (this.sendQueue.isEmpty()) {
                 break;
             }
@@ -846,7 +803,7 @@ public class KCPContext {
             segment.setUnacknowledgedSegmentId(this.nextReceiveSegmentId);
             segment.setResendTimeStamp(current);
             segment.setRTO(this.currentRTO);
-            segment.setFastAck(0);
+            segment.setFastAcknowledgedCount(0);
             segment.setSendCount(0);
             this.sendBuff.add(segment);
 
@@ -854,21 +811,23 @@ public class KCPContext {
         }
 
         //calculate resent
-        int resent = this.fastResend > 0 ? this.fastResend : 0xffffffff;
+        int resent = this.fastResend > 0 ? this.fastResend : -1;
         int rtoMin = this.noDelay == 0 ? (this.currentRTO >> 3) : 0;
 
         // flush data segments
+        boolean change = false;
+        boolean lost = false;
         for (KCPSegment segment : this.sendBuff) {
-            int needSend = 0;
+            boolean needSend = false;
             if (segment.getSendCount() == 0) {
-                needSend = 1;
+                needSend = true;
                 segment.setSendCount(segment.getSendCount() + 1);
                 segment.setRTO(this.currentRTO);
                 segment.setResendTimeStamp(current + segment.getRTO() + rtoMin);
             } else if (current - segment.getResendTimeStamp() >= 0) {
-                needSend = 1;
+                //根据resendTimeStamp重发数据，根据noDelay确定下一次重发的时间
+                needSend = true;
                 segment.setSendCount(segment.getSendCount() + 1);
-                this.sendCount++;
                 if (this.noDelay == 0) {
                     segment.setRTO(segment.getRTO() + Math.max(segment.getRTO(), this.currentRTO));
                 } else {
@@ -876,25 +835,25 @@ public class KCPContext {
                     segment.setRTO(segment.getRTO() + step / 2);
                 }
                 segment.setResendTimeStamp(current + segment.getRTO());
-                lost = 1;
-            } else if (segment.getFastAck() >= resent) {
+                lost = true;
+            } else if (segment.getFastAcknowledgedCount() >= resent) {
+                //快速重传，不考虑resentTimeStamp
                 if (segment.getSendCount() <= this.fastLimit || this.fastLimit <= 0) {
-                    needSend = 1;
+                    needSend = true;
                     segment.setSendCount(segment.getSendCount() + 1);
-                    segment.setFastAck(0);
+                    segment.setFastAcknowledgedCount(0);
                     segment.setResendTimeStamp(current + segment.getRTO());
-                    change++;
+                    change = true;
                 }
             }
 
-            if (needSend != 0) {
-                int need;
+            if (needSend) {
                 segment.setTimeStamp(current);
                 segment.setWindowSize(templateSegment.getWindowSize());
                 segment.setUnacknowledgedSegmentId(this.nextReceiveSegmentId);
 
                 int size = buffer.position();
-                need = KCPSegment.KCP_OVERHEAD + segment.getLength();
+                int need = KCPSegment.KCP_OVERHEAD + segment.getLength();
 
                 if (size + need > this.MTU) {
                     buffer.flip();
@@ -922,7 +881,7 @@ public class KCPContext {
         }
 
         // update slowStartThresh
-        if (change != 0) {
+        if (change) {
             int inflight = this.nextSendSegmentId - this.sendUnacknowledgedSegmentId;
             this.slowStartThresh = inflight / 2;
             if (this.slowStartThresh < KCPUtils.KCP_THRESH_MIN) {
@@ -931,34 +890,62 @@ public class KCPContext {
             this.crowdedWindow = this.slowStartThresh + resent;
             this.incr = this.crowdedWindow * this.MSS;
         }
-
-        if (lost != 0) {
-            this.slowStartThresh = cwnd / 2;
+        if (lost) {
+            this.slowStartThresh = windowSize / 2;
             if (this.slowStartThresh < KCPUtils.KCP_THRESH_MIN) {
                 this.slowStartThresh = KCPUtils.KCP_THRESH_MIN;
             }
             this.crowdedWindow = 1;
             this.incr = this.MSS;
         }
-
         if (this.crowdedWindow < 1) {
             this.crowdedWindow = 1;
             this.incr = this.MSS;
         }
     }
 
-    /**
-     * 设置分片的acknowledge信息
-     *
-     * @param index   索引
-     * @param segment 分片
-     */
-    private void getAck(int index, KCPSegment segment) {
-        KCPACKInfo info = ackList.get(index);
-        if (info != null) {
-            segment.setSegmentId(info.segmentId());
-            segment.setTimeStamp(info.timeStamp());
+    private void flushWindowProbeCommand(int commandId, KCPSegment templateSegment) {
+        templateSegment.setCommandId(commandId);
+        int size = buffer.position();
+        if (size + KCPSegment.KCP_OVERHEAD > this.MTU) {
+            buffer.flip();
+            this.output(buffer, size);
+            buffer.clear();
         }
+        templateSegment.setSegmentId(0);
+        templateSegment.setTimeStamp(0);
+        templateSegment.encodeHead(buffer);
+    }
+
+    /**
+     * flush acknowledges
+     * @param templateSegment 分片数据模板
+     */
+    private void flushAcknowledges(KCPSegment templateSegment) {
+        for (KCPACKInfo kcpackInfo : this.ackList) {
+            int size = buffer.position();
+            if (size + KCPSegment.KCP_OVERHEAD > this.MTU) {
+                buffer.flip();
+                this.output(buffer, size);
+                buffer.clear();
+            }
+            templateSegment.setSegmentId(kcpackInfo.segmentId());
+            templateSegment.setTimeStamp(kcpackInfo.timeStamp());
+            templateSegment.encodeHead(buffer);
+        }
+        this.ackList.clear();
+    }
+
+    /**
+     * 获得剩余窗口大小
+     *
+     * @return 剩余窗口大小
+     */
+    private int getWindowUnused() {
+        if (this.receiveQueue.size() < this.receiveWindow) {
+            return this.receiveWindow - this.receiveQueue.size();
+        }
+        return 0;
     }
 
     /**
@@ -966,9 +953,8 @@ public class KCPContext {
      *
      * @param buffer 数据buffer
      * @param size   数据大小
-     * @return 传送数据大小
      */
-    private int output(ByteBuffer buffer, int size) {
+    private void output(ByteBuffer buffer, int size) {
         byte[] data = new byte[size];
         buffer.get(data);
 
@@ -976,33 +962,28 @@ public class KCPContext {
             this.writeLog(KCPUtils.KCP_LOG_OUTPUT, "[RO] user:%d size:%d", this.user, size);
         }
         if (size == 0) {
-            return 0;
+            return;
         }
         if (this.IKCPContext != null) {
-            return IKCPContext.output(data, size, this, user);
+            IKCPContext.output(data, size, this, user);
         }
-        return 0;
     }
 
     /**
-     * Determine when should you invoke update:
-     * returns when you should invoke update in timeMillis, if there
-     * is no input/send calling. you can call update in that
-     * time, instead of call update repeatedly.
-     * Important to reduce unnecessary update invoking. use it to
-     * schedule update (eg. implementing an epoll-like mechanism,
-     * or optimize update when handling massive kcp connections)
+     * 确定何时应该调用 update：如果没有 input/send 调用，何时应该在调用 update。您可以在该时间内调用 Update，而不是重复调用 Update。
+     * 减少不必要的更新调用非常重要。使用它来安排更新（例如，实现类似 epoll 的机制，或在处理大量 KCP 连接时优化更新）
+     * @param current 当前时间
+     * @return 下一次更新时间
      */
     public long check(long current) {
         long flushTimeStamp = this.nextFlushTimeStamp;
-        long tm_packet = 0x7fffffff;
-        long minimal;
+        long nextSendSegmentWaitTime = Integer.MAX_VALUE;
 
         if (!this.updated) {
             return current;
         }
 
-        if (current - flushTimeStamp >= 10000 || current < -10000) {
+        if (current - flushTimeStamp >= KCPUtils.KCP_MAX_UPDATE_SLAP || current - flushTimeStamp < -KCPUtils.KCP_MAX_UPDATE_SLAP) {
             flushTimeStamp = current;
         }
 
@@ -1010,19 +991,19 @@ public class KCPContext {
             return current;
         }
 
-        long tm_flush = flushTimeStamp - current;
+        long nextFlushWaitTime = flushTimeStamp - current;
 
         for (KCPSegment segment : this.sendBuff) {
             long diff = segment.getResendTimeStamp() - current;
             if (diff <= 0) {
                 return current;
             }
-            if (diff < tm_packet) {
-                tm_packet = diff;
+            if (diff < nextSendSegmentWaitTime) {
+                nextSendSegmentWaitTime = diff;
             }
         }
 
-        minimal = Math.min(tm_packet, tm_flush);
+        long minimal = Math.min(nextSendSegmentWaitTime, nextFlushWaitTime);
         if (minimal >= this.interval) {
             minimal = this.interval;
         }
@@ -1030,26 +1011,39 @@ public class KCPContext {
         return current + minimal;
     }
 
+    /**
+     * 更新flush时间间隔
+     * @param interval 时间间隔
+     */
     public void setInterval(int interval) {
-        if (interval > 5000) {
-            interval = 5000;
-        } else if (interval < 10) {
-            interval = 10;
+        if (interval > KCPUtils.KCP_MAX_UPDATE_INTERVAL) {
+            interval = KCPUtils.KCP_MAX_UPDATE_INTERVAL;
+        } else if (interval < KCPUtils.KCP_MIN_UPDATE_INTERVAL) {
+            interval = KCPUtils.KCP_MIN_UPDATE_INTERVAL;
         }
         this.interval = interval;
     }
 
-    public int setMTU(int mtu) {
-        if (mtu < 50 || mtu < KCPSegment.KCP_OVERHEAD) {
-            return KCPUtils.KCP_ERROR_INVALID_DATA_LENGTH;
+    /**
+     * 设置mtu
+     *
+     * @param mtu 新mtu值
+     */
+    public void setMTU(int mtu) {
+        if (mtu < Math.min(KCPUtils.KCP_MIN_MTU,KCPSegment.KCP_OVERHEAD)) {
+            throw new KCPInvalidMTUException("new mtu is invalid",this);
         }
         ByteBuffer buffer = ByteBuffer.allocate((mtu + KCPSegment.KCP_OVERHEAD) * 3);
         this.MTU = mtu;
         this.MSS = this.MTU - KCPSegment.KCP_OVERHEAD;
         this.buffer = buffer;
-        return KCPUtils.KCP_OPERATION_SUCCESS;
     }
 
+    /**
+     * 设置窗口大小
+     * @param sendWindow 发送窗口
+     * @param receiveWindow 接收窗口
+     */
     public void setWindowSize(int sendWindow, int receiveWindow) {
         if (sendWindow > 0) {
             this.sendWindow = sendWindow;
@@ -1059,11 +1053,14 @@ public class KCPContext {
         }
     }
 
-    public int getWaitSend() {
-        return this.sendBuff.size() + this.sendQueue.size();
-    }
-
-    public void setNoDelay(int noDelay, int interval, int reSend, boolean isNoCrowdedWindow) {
+    /**
+     * 设置kcp阻塞控制等参数
+     * @param noDelay 启用以后若干常规加速将启动
+     * @param interval 内部处理时钟
+     * @param resend 快速重传指标
+     * @param isNoCrowdedWindow 为是否禁用常规流控
+     */
+    public void setNoDelay(int noDelay, int interval, int resend, boolean isNoCrowdedWindow) {
         if (noDelay >= 0) {
             this.noDelay = noDelay;
             if (noDelay != 0) {
@@ -1073,23 +1070,19 @@ public class KCPContext {
             }
         }
         if (interval >= 0) {
-            if (interval > 5000) {
-                interval = 5000;
-            } else if (interval < 10) {
-                interval = 10;
-            }
-            this.interval = interval;
+            setInterval(interval);
         }
-        if (reSend >= 0) {
-            this.fastResend = reSend;
+        if (resend >= 0) {
+            this.fastResend = resend;
         }
         this.isNoCrowdedWindow = isNoCrowdedWindow;
     }
 
-    public void setIKCPContext(IKCPContext IKCPContext) {
-        this.IKCPContext = IKCPContext;
-    }
-
+    /**
+     * 是否可以写日志
+     * @param mask 日志掩码
+     * @return 是否
+     */
     private boolean canLog(int mask) {
         if ((mask & this.logMask) == 0) {
             return false;
@@ -1097,6 +1090,12 @@ public class KCPContext {
         return this.IKCPContext != null;
     }
 
+    /**
+     * 写日志
+     * @param mask 日志类型掩码
+     * @param fmt 日志输出格式
+     * @param args 日志参数
+     */
     private void writeLog(int mask, String fmt, Object... args) {
         if ((mask & this.logMask) == 0) {
             return;
@@ -1105,6 +1104,14 @@ public class KCPContext {
         if (this.IKCPContext != null) {
             this.IKCPContext.writeLog(message, this, user);
         }
+    }
+
+    public void setIKCPContext(IKCPContext IKCPContext) {
+        this.IKCPContext = IKCPContext;
+    }
+
+    public int getWaitSend() {
+        return this.sendBuff.size() + this.sendQueue.size();
     }
 
     public boolean isFastAckConserve() {
@@ -1273,14 +1280,6 @@ public class KCPContext {
 
     public void setNextFlushTimeStamp(long nextFlushTimeStamp) {
         this.nextFlushTimeStamp = nextFlushTimeStamp;
-    }
-
-    public int getSendCount() {
-        return sendCount;
-    }
-
-    public void setSendCount(int sendCount) {
-        this.sendCount = sendCount;
     }
 
     public int getNoDelay() {

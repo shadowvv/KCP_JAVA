@@ -76,7 +76,6 @@ public class KCPTest implements IKCPContext {
         context.setFastResend(0);
         context.setFastLimit(KCPUtils.KCP_FAST_ACK_LIMIT);
         context.setIsNoCrowdedWindow(false);
-        context.setSendCount(0);
         context.setDeadLink(KCPUtils.KCP_DEAD_LINK);
         return context;
     }
@@ -164,7 +163,10 @@ public class KCPTest implements IKCPContext {
                 }
                 // 如果 p2收到udp，则作为下层协议输入到kcp2
                 buffer.flip();
-                KCPContext2.input(buffer,hr);
+                int result = KCPContext2.input(buffer,hr);
+                if (result != KCPUtils.KCP_OPERATION_SUCCESS){
+                    return;
+                }
             }
 
             // 处理虚拟网络：检测是否有udp包从p2->p1
@@ -174,7 +176,10 @@ public class KCPTest implements IKCPContext {
                 if (hr < 0){break;}
                 // 如果 p1收到udp，则作为下层协议输入到kcp1
                 buffer.flip();
-                KCPContext1.input(buffer,hr);
+                int result = KCPContext1.input(buffer,hr);
+                if (result != KCPUtils.KCP_OPERATION_SUCCESS){
+                    return;
+                }
             }
 
             // kcp2接收到任何包都返回回去
