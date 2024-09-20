@@ -39,7 +39,7 @@ jobs:
       working-directory: ./kcp
 
     - name: Build and Publish Package
-      run: mvn deploy
+      run: mvn deploy -X
       working-directory: ./kcp
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
