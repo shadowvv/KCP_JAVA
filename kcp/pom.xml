@@ -4,23 +4,11 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.drop</groupId>
-    <artifactId>kcp</artifactId>
-    <version>1.0-SNAPSHOT</version>
-
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
-
-    <distributionManagement>
-        <repository>
-            <id>github</id>
-            <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/shadowvv/KCP_JAVA</url>
-        </repository>
-    </distributionManagement>
 
     <build>
         <plugins>
@@ -32,6 +20,16 @@
         </plugins>
     </build>
 
+    <groupId>org.drop</groupId>
+    <artifactId>kcp</artifactId>
+    <version>1.0-SNAPSHOT</version>
 
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/shadowvv/KCP_JAVA</url>
+        </repository>
+    </distributionManagement>
 
 </project>

@@ -34,16 +34,16 @@ jobs:
             </servers>
           </settings>" > $HOME/.m2/settings.xml
 
-      - name: Debug Maven settings
-        if: ${{ github.event_name == 'push' }}
-        run: cat $HOME/.m2/settings.xml
+#      - name: Debug Maven settings
+#        if: ${{ github.event_name == 'push' }}
+#        run: cat $HOME/.m2/settings.xml
 
       - name: Build with Maven
         run: mvn -B package --file pom.xml
         working-directory: ./kcp
 
       - name: Build and Publish Package
-        run: mvn deploy -X
+        run: mvn deploy
         working-directory: ./kcp
 
       - name: Update dependency graph
