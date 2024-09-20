@@ -33,7 +33,7 @@ jobs:
       working-directory: ./kcp
 
     - name: Authenticate to GitHub Packages
-      run: echo "<settings><servers><server><id>github</id><username>${{ github.actor }}</username><password>${{ secrets.GITHUB_TOKEN }}</password></server></servers></settings>" > $HOME/.m2/settings.xml
+      run: echo "<settings><servers><server><id>github</id><username>shadowvv</username><password>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</password></server></servers></settings>" > $HOME/.m2/settings.xml
 
     - name: Build and Publish Package
       run: mvn deploy
