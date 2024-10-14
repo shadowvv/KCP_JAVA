@@ -69,7 +69,7 @@ public class KCPTest implements IKCPContext {
         context.setCurrent(0);
         context.setInterval(KCPUtils.KCP_INTERVAL);
         context.setNextFlushTimeStamp(KCPUtils.KCP_INTERVAL);
-        context.setNoDelay(0);
+        context.setNoDelay(false);
         context.setUpdated(false);
         context.setLogMask(0);
         context.setSlowStartThresh(KCPUtils.KCP_THRESH_INIT);
@@ -114,20 +114,20 @@ public class KCPTest implements IKCPContext {
         // 判断测试用例的模式
         if (mode == 0){
             // 默认模式
-            KCPContext1.setNoDelay(0,10,0,false);
-            KCPContext2.setNoDelay(0,10,0,false);
+            KCPContext1.setNoDelay(false,10,0,false);
+            KCPContext2.setNoDelay(false,10,0,false);
         }else if (mode == 1){
             // 普通模式，关闭流控等
-            KCPContext1.setNoDelay(0,10,0,true);
-            KCPContext2.setNoDelay(0,10,0,true);
+            KCPContext1.setNoDelay(false,10,0,true);
+            KCPContext2.setNoDelay(false,10,0,true);
         }else {
             // 启动快速模式
             // 第一个参数 noDelay-启用以后若干常规加速将启动
             // 第二个参数 interval为内部处理时钟，默认设置为 10ms
             // 第三个参数 resend为快速重传指标，设置为2
             // 第四个参数 为是否禁用常规流控，这里禁止
-            KCPContext1.setNoDelay(2,10,2,true);
-            KCPContext2.setNoDelay(2,10,2,true);
+            KCPContext1.setNoDelay(true,10,2,true);
+            KCPContext2.setNoDelay(true,10,2,true);
             KCPContext1.setMinRto(10);
             KCPContext1.setFastResend(1);
         }

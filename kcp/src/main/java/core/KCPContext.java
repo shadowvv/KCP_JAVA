@@ -144,7 +144,7 @@ public class KCPContext {
     /**
      * 是否启用无延迟模式。无延迟模式下，发送更快但可能导致网络波动。
      */
-    private int noDelay;
+    private boolean noDelay;
     /**
      * 是否已经调用了update函数。用于确定KCP的初始化状态。
      */
@@ -812,7 +812,7 @@ public class KCPContext {
 
         //calculate resent
         int resent = this.fastResend > 0 ? this.fastResend : -1;
-        int rtoMin = this.noDelay == 0 ? (this.currentRTO >> 3) : 0;
+        int rtoMin = (!this.noDelay) ? (this.currentRTO >> 3) : 0;
 
         // flush data segments
         boolean change = false;
@@ -828,11 +828,10 @@ public class KCPContext {
                 //根据resendTimeStamp重发数据，根据noDelay确定下一次重发的时间
                 needSend = true;
                 segment.setSendCount(segment.getSendCount() + 1);
-                if (this.noDelay == 0) {
+                if (!this.noDelay) {
                     segment.setRTO(segment.getRTO() + Math.max(segment.getRTO(), this.currentRTO));
                 } else {
-                    long step = (this.noDelay < 2) ? segment.getRTO() : this.currentRTO;
-                    segment.setRTO(segment.getRTO() + step / 2);
+                    segment.setRTO(segment.getRTO() + this.currentRTO / 2);
                 }
                 segment.setResendTimeStamp(current + segment.getRTO());
                 lost = true;
@@ -1060,14 +1059,12 @@ public class KCPContext {
      * @param resend 快速重传指标
      * @param isNoCrowdedWindow 为是否禁用常规流控
      */
-    public void setNoDelay(int noDelay, int interval, int resend, boolean isNoCrowdedWindow) {
-        if (noDelay >= 0) {
-            this.noDelay = noDelay;
-            if (noDelay != 0) {
-                this.minRto = KCPUtils.KCP_RTO_NO_DELAY_MIN;
-            } else {
-                this.minRto = KCPUtils.KCP_RTO_MIN;
-            }
+    public void setNoDelay(boolean noDelay, int interval, int resend, boolean isNoCrowdedWindow) {
+        this.noDelay = noDelay;
+        if (noDelay) {
+            this.minRto = KCPUtils.KCP_RTO_NO_DELAY_MIN;
+        } else {
+            this.minRto = KCPUtils.KCP_RTO_MIN;
         }
         if (interval >= 0) {
             setInterval(interval);
@@ -1282,11 +1279,11 @@ public class KCPContext {
         this.nextFlushTimeStamp = nextFlushTimeStamp;
     }
 
-    public int getNoDelay() {
+    public boolean getNoDelay() {
         return noDelay;
     }
 
-    public void setNoDelay(int noDelay) {
+    public void setNoDelay(boolean noDelay) {
         this.noDelay = noDelay;
     }
 
