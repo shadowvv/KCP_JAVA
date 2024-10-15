@@ -606,7 +606,11 @@ public class KCPContext {
         // 根据新的平滑RTT和偏差，计算新的RTO
         rto = (int) (this.smoothRtti + Math.max(this.interval, 4 * this.rttVal));
         // 将计算出来的RTO限制在最小和最大范围之间
-        this.smoothRtti = Math.clamp(rto, this.minRto, KCPUtils.KCP_RTO_MAX);
+        this.smoothRtti = KCPContext.clamp(rto, this.minRto, KCPUtils.KCP_RTO_MAX);
+    }
+
+    public static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(value, max));
     }
 
     /**
@@ -928,8 +932,8 @@ public class KCPContext {
                 this.output(buffer, size);
                 buffer.clear();
             }
-            templateSegment.setSegmentId(kcpackInfo.segmentId());
-            templateSegment.setTimeStamp(kcpackInfo.timeStamp());
+            templateSegment.setSegmentId(kcpackInfo.getSegmentId());
+            templateSegment.setTimeStamp(kcpackInfo.getTimeStamp());
             templateSegment.encodeHead(buffer);
         }
         this.ackList.clear();
