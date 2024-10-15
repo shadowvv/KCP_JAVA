@@ -1,6 +1,6 @@
-package exception;
+package org.drop.kcp.exception;
 
-import core.KCPContext;
+import org.drop.kcp.core.KCPContext;
 
 public class KCPWrongDataException extends RuntimeException {
     public KCPWrongDataException(String message, KCPContext kcpContext) {

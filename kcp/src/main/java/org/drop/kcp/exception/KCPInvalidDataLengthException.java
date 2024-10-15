@@ -1,6 +1,6 @@
-package exception;
+package org.drop.kcp.exception;
 
-import core.KCPContext;
+import org.drop.kcp.core.KCPContext;
 
 /**
  * 数据长度异常

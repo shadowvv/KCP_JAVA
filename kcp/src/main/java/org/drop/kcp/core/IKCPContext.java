@@ -1,4 +1,4 @@
-package core;
+package org.drop.kcp.core;
 
 /**
  * kcp上层逻辑调用接口

@@ -1,4 +1,4 @@
-package core;
+package org.drop.kcp.core;
 
 import java.nio.ByteBuffer;
 

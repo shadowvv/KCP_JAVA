@@ -1,6 +1,6 @@
-package exception;
+package org.drop.kcp.exception;
 
-import core.KCPContext;
+import org.drop.kcp.core.KCPContext;
 
 public class KCPOverReceiveWindowException extends RuntimeException {
     public KCPOverReceiveWindowException(String message, KCPContext kcpContext) {

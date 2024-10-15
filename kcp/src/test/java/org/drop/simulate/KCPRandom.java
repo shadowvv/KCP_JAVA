@@ -1,4 +1,4 @@
-package simulate;
+package org.drop.simulate;
 
 import java.util.ArrayList;
 import java.util.List;

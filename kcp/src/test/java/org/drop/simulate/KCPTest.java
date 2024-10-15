@@ -1,9 +1,9 @@
-package simulate;
+package org.drop.simulate;
 
-import core.IKCPContext;
-import core.KCPContext;
-import core.KCPSegment;
-import core.KCPUtils;
+import org.drop.kcp.core.IKCPContext;
+import org.drop.kcp.core.KCPContext;
+import org.drop.kcp.core.KCPSegment;
+import org.drop.kcp.core.KCPUtils;
 
 import java.nio.ByteBuffer;
 import java.util.Scanner;

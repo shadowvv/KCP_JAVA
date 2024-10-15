@@ -1,6 +1,6 @@
-package exception;
+package org.drop.kcp.exception;
 
-import core.KCPContext;
+import org.drop.kcp.core.KCPContext;
 
 public class KCPReceiveQueueNextSegmentNotComplete extends RuntimeException {
     public KCPReceiveQueueNextSegmentNotComplete(String message, KCPContext context, int segmentId) {

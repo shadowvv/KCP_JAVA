@@ -1,7 +1,9 @@
-package core;
+package org.drop.kcp.core;
 
 import java.nio.ByteBuffer;
-import exception.*;
+
+import org.drop.kcp.exception.*;
+
 import java.util.*;
 
 /**
