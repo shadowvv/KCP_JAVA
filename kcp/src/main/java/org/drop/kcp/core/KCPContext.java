@@ -196,10 +196,9 @@ public class KCPContext {
     private IKCPContext IKCPContext;
 
     /**
-     *
      * @param conversationId 会话ID
-     * @param user 用户数据
-     * @param IKCPContext 用户回调方法
+     * @param user           用户数据
+     * @param IKCPContext    用户回调方法
      */
     public KCPContext(int conversationId, Object user, IKCPContext IKCPContext) {
         this.conversationId = conversationId;
@@ -236,7 +235,7 @@ public class KCPContext {
 
         assert (this.MSS > 0);
         if (length <= 0) {
-            throw new KCPInvalidDataLengthException("length <= 0",this);
+            throw new KCPInvalidDataLengthException("length <= 0", this);
         }
 
         int sent = 0;
@@ -275,7 +274,7 @@ public class KCPContext {
             if (this.isStream && sent > 0) {
                 return sent;
             } else {
-                throw new KCPOverReceiveWindowException("segment count over receive window",this);
+                throw new KCPOverReceiveWindowException("segment count over receive window", this);
             }
         }
         if (count == 0) {
@@ -322,7 +321,7 @@ public class KCPContext {
         }
 
         if (nextDataLength > length) {
-            throw new KCPBufferLengthIsNotEnoughException("the buffer length is not enough",this);
+            throw new KCPBufferLengthIsNotEnoughException("the buffer length is not enough", this);
         }
 
         //是否需要通知远端当前接收窗口大小,当receiveQueue大小从大于接收窗口变为小于接收窗口时通知。
@@ -337,7 +336,7 @@ public class KCPContext {
             dataLength += segment.getLength();
 
             if (canLog(KCPUtils.KCP_LOG_REC)) {
-                writeLog(KCPUtils.KCP_LOG_REC, "receive sn=%d", segment.getSegmentId());
+                writeLog(KCPUtils.KCP_LOG_REC, "receive conversationId=%d sn=%d", conversationId, segment.getSegmentId());
             }
 
             if (!isPeek) {
@@ -382,7 +381,7 @@ public class KCPContext {
             return segment.getLength();
         }
         if (this.receiveQueue.size() < segment.getFragmentId() + 1) {
-            throw new KCPReceiveQueueNextSegmentNotComplete("receive queue next segment is not complete",this,segment.getSegmentId());
+            throw new KCPReceiveQueueNextSegmentNotComplete("receive queue next segment is not complete", this, segment.getSegmentId());
         }
 
         int length = 0;
@@ -398,17 +397,17 @@ public class KCPContext {
      * 接收数据
      *
      * @param buffer 数据buff
-     * @param length   接受数据长度
+     * @param length 接受数据长度
      * @return 返回操作是否成功，小于0代表返回错误
      */
     public int input(ByteBuffer buffer, int length) {
 
         if (length < KCPSegment.KCP_OVERHEAD) {
-            throw new KCPBufferDataNotEnoughToReceiveException("the buffer length is not enough to receive",this);
+            throw new KCPBufferDataNotEnoughToReceiveException("the buffer length is not enough to receive", this);
         }
 
         if (canLog(KCPUtils.KCP_LOG_INPUT)) {
-            writeLog(KCPUtils.KCP_LOG_INPUT, "[RI] %d bytes", length);
+            writeLog(KCPUtils.KCP_LOG_INPUT, "[RI] conversationId=%d length=%d bytes", conversationId, length);
         }
 
         int prevUnacknowledgedSegmentId = this.sendUnacknowledgedSegmentId;
@@ -421,7 +420,7 @@ public class KCPContext {
 
             int conversationId = buffer.getInt();
             if (conversationId != this.conversationId) {
-                throw new KCPDataHeadWrongConversationIdException("data head has wrong conversation id",this);
+                throw new KCPDataHeadWrongConversationIdException("data head has wrong conversation id", this);
             }
 
             int segmentId = buffer.getInt();
@@ -429,7 +428,7 @@ public class KCPContext {
             int commandId = buffer.getInt();
             if (commandId != KCPUtils.KCP_CMD_PUSH && commandId != KCPUtils.KCP_CMD_ACK
                     && commandId != KCPUtils.KCP_CMD_WINDOW_ASK && commandId != KCPUtils.KCP_CMD_WINDOW_SIZE) {
-                throw new KCPDataHeadWrongCommandIdException("data head has wrong command id",this);
+                throw new KCPDataHeadWrongCommandIdException("data head has wrong command id", this);
             }
 
             long timeStamp = buffer.getLong();
@@ -438,7 +437,7 @@ public class KCPContext {
             int segmentLength = buffer.getInt();
             length -= KCPSegment.KCP_OVERHEAD;
             if (length < segmentLength) {
-                throw new KCPWrongDataException("data left length is less than segment length",this);
+                throw new KCPWrongDataException("data left length is less than segment length", this);
             }
 
             this.remoteWindow = windowSize;
@@ -469,13 +468,13 @@ public class KCPContext {
                         }
                     }
                     if (canLog(KCPUtils.KCP_LOG_IN_ACK)) {
-                        writeLog(KCPUtils.KCP_LOG_IN_ACK, "input ack: sn=%d rtt=%d rto=%d", segmentId, (this.current - timeStamp), this.currentRTO);
+                        writeLog(KCPUtils.KCP_LOG_IN_ACK, "input conversationId:%d ack: sn=%d rtt=%d rto=%d", conversationId, segmentId, (this.current - timeStamp), this.currentRTO);
                     }
                     break;
                 }
                 case KCPUtils.KCP_CMD_PUSH: {
                     if (canLog(KCPUtils.KCP_LOG_IN_DATA)) {
-                        writeLog(KCPUtils.KCP_LOG_IN_DATA, "input psh: sn=%d ts=%d", segmentId, timeStamp);
+                        writeLog(KCPUtils.KCP_LOG_IN_DATA, "input conversationId:%d psh: sn=%d ts=%d", conversationId, segmentId, timeStamp);
                     }
                     byte[] data = new byte[segmentLength];
                     buffer.get(data, 0, segmentLength);
@@ -501,18 +500,18 @@ public class KCPContext {
                 case KCPUtils.KCP_CMD_WINDOW_ASK: {
                     this.probe |= KCPUtils.KCP_ASK_TELL;
                     if (canLog(KCPUtils.KCP_LOG_IN_PROBE)) {
-                        writeLog(KCPUtils.KCP_LOG_IN_PROBE, "input probe");
+                        writeLog(KCPUtils.KCP_LOG_IN_PROBE, "input probe conversationId=%d", conversationId);
                     }
                     break;
                 }
                 case KCPUtils.KCP_CMD_WINDOW_SIZE: {
                     if (canLog(KCPUtils.KCP_LOG_IN_WINS)) {
-                        writeLog(KCPUtils.KCP_LOG_IN_WINS, "input wins: %d", windowSize);
+                        writeLog(KCPUtils.KCP_LOG_IN_WINS, "input conversationId=%d wins: %d", conversationId, windowSize);
                     }
                     break;
                 }
                 default:
-                    throw new KCPDataHeadWrongCommandIdException("data head has wrong command id",this);
+                    throw new KCPDataHeadWrongCommandIdException("data head has wrong command id", this);
             }
             length -= segmentLength;
         }
@@ -679,7 +678,7 @@ public class KCPContext {
                 this.receiveBuff.removeFirst();
                 this.receiveQueue.add(tempSegment);
                 this.nextReceiveSegmentId++;
-            }else {
+            } else {
                 break;
             }
         }
@@ -711,6 +710,7 @@ public class KCPContext {
 
     /**
      * 更新KCP状态（重复调用，每 10ms-100ms 调用一次），也可以询问检查何时再次调用（无 input/send 调用）。
+     *
      * @param current 当前毫秒时间
      */
     public void update(long current) {
@@ -778,10 +778,10 @@ public class KCPContext {
 
         // flush window probing commands
         if ((this.probe & KCPUtils.KCP_ASK_SEND) != 0) {
-            flushWindowProbeCommand(KCPUtils.KCP_CMD_WINDOW_ASK,templateSegment);
+            flushWindowProbeCommand(KCPUtils.KCP_CMD_WINDOW_ASK, templateSegment);
         }
         if ((this.probe & KCPUtils.KCP_ASK_TELL) != 0) {
-            flushWindowProbeCommand(KCPUtils.KCP_CMD_WINDOW_SIZE,templateSegment);
+            flushWindowProbeCommand(KCPUtils.KCP_CMD_WINDOW_SIZE, templateSegment);
         }
         this.probe = 0;
 
@@ -920,6 +920,7 @@ public class KCPContext {
 
     /**
      * flush acknowledges
+     *
      * @param templateSegment 分片数据模板
      */
     private void flushAcknowledges(KCPSegment templateSegment) {
@@ -960,7 +961,7 @@ public class KCPContext {
         buffer.get(data);
 
         if (canLog(KCPUtils.KCP_LOG_OUTPUT)) {
-            this.writeLog(KCPUtils.KCP_LOG_OUTPUT, "[RO] user:%d size:%d", this.user, size);
+            this.writeLog(KCPUtils.KCP_LOG_OUTPUT, "[RO] conversationId=%d user:%d size:%d", conversationId, this.user, size);
         }
         if (size == 0) {
             return;
@@ -973,6 +974,7 @@ public class KCPContext {
     /**
      * 确定何时应该调用 update：如果没有 input/send 调用，何时应该在调用 update。您可以在该时间内调用 Update，而不是重复调用 Update。
      * 减少不必要的更新调用非常重要。使用它来安排更新（例如，实现类似 epoll 的机制，或在处理大量 KCP 连接时优化更新）
+     *
      * @param current 当前时间
      * @return 下一次更新时间
      */
@@ -1014,6 +1016,7 @@ public class KCPContext {
 
     /**
      * 更新flush时间间隔
+     *
      * @param interval 时间间隔
      */
     public void setInterval(int interval) {
@@ -1031,8 +1034,8 @@ public class KCPContext {
      * @param mtu 新mtu值
      */
     public void setMTU(int mtu) {
-        if (mtu < Math.min(KCPUtils.KCP_MIN_MTU,KCPSegment.KCP_OVERHEAD)) {
-            throw new KCPInvalidMTUException("new mtu is invalid",this);
+        if (mtu < Math.min(KCPUtils.KCP_MIN_MTU, KCPSegment.KCP_OVERHEAD)) {
+            throw new KCPInvalidMTUException("new mtu is invalid", this);
         }
         ByteBuffer buffer = ByteBuffer.allocate((mtu + KCPSegment.KCP_OVERHEAD) * 3);
         this.MTU = mtu;
@@ -1042,7 +1045,8 @@ public class KCPContext {
 
     /**
      * 设置窗口大小
-     * @param sendWindow 发送窗口
+     *
+     * @param sendWindow    发送窗口
      * @param receiveWindow 接收窗口
      */
     public void setWindowSize(int sendWindow, int receiveWindow) {
@@ -1056,9 +1060,10 @@ public class KCPContext {
 
     /**
      * 设置kcp阻塞控制等参数
-     * @param noDelay 启用以后若干常规加速将启动
-     * @param interval 内部处理时钟
-     * @param resend 快速重传指标
+     *
+     * @param noDelay           启用以后若干常规加速将启动
+     * @param interval          内部处理时钟
+     * @param resend            快速重传指标
      * @param isNoCrowdedWindow 为是否禁用常规流控
      */
     public void setNoDelay(boolean noDelay, int interval, int resend, boolean isNoCrowdedWindow) {
@@ -1079,6 +1084,7 @@ public class KCPContext {
 
     /**
      * 是否可以写日志
+     *
      * @param mask 日志掩码
      * @return 是否
      */
@@ -1091,8 +1097,9 @@ public class KCPContext {
 
     /**
      * 写日志
+     *
      * @param mask 日志类型掩码
-     * @param fmt 日志输出格式
+     * @param fmt  日志输出格式
      * @param args 日志参数
      */
     private void writeLog(int mask, String fmt, Object... args) {
@@ -1102,6 +1109,8 @@ public class KCPContext {
         String message = String.format(fmt, args);
         if (this.IKCPContext != null) {
             this.IKCPContext.writeLog(message, this, user);
+        } else {
+            System.out.println(message);
         }
     }
 

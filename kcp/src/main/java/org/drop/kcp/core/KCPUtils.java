@@ -50,7 +50,7 @@ public class KCPUtils {
      */
     public static final int KCP_PROBE_LIMIT = 120000;
     /**
-     *  max times to trigger fast ack
+     * max times to trigger fast ack
      */
     public static final int KCP_FAST_ACK_LIMIT = 5;
     public static final int KCP_MAX_UPDATE_SLAP = 10000;

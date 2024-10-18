@@ -25,10 +25,11 @@ public class KCPLatencySimulator {
 
     /**
      * 构建
+     *
      * @param lostRate 往返一周丢包率的百分比，默认 10%
-     * @param rttMin rtt最小值，默认 60ms
-     * @param rttMax rtt最大值，默认 125ms
-     * @param nMax 数据包最大值
+     * @param rttMin   rtt最小值，默认 60ms
+     * @param rttMax   rtt最大值，默认 125ms
+     * @param nMax     数据包最大值
      */
     KCPLatencySimulator(int lostRate, int rttMin, int rttMax, int nMax) {
         this.r12 = new KCPRandom(100);
@@ -54,6 +55,7 @@ public class KCPLatencySimulator {
 
     /**
      * 发送数据
+     *
      * @param peer 端点0/1，从0发送，从1接收；从1发送从0接收
      * @param data 数据
      * @param size 数据大小
@@ -74,7 +76,7 @@ public class KCPLatencySimulator {
             delay += new Random().nextInt(rttMax - rttMin);
         }
 
-        KCPDelayPacket dp = new KCPDelayPacket(data, size,current+delay);
+        KCPDelayPacket dp = new KCPDelayPacket(data, size, current + delay);
         if (peer == 0) {
             p12.add(dp);
         } else {
@@ -84,8 +86,9 @@ public class KCPLatencySimulator {
 
     /**
      * 接收数据
-     * @param peer 来源id
-     * @param buffer 数据buffer
+     *
+     * @param peer    来源id
+     * @param buffer  数据buffer
      * @param maxSize 接收数据最大值
      * @return 接收的数据大小
      */

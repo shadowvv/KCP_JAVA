@@ -24,7 +24,7 @@ public class KCPRandom {
 
     public int random() {
         if (seeds.isEmpty()) return 0;
-        if (size == 0){
+        if (size == 0) {
             for (int i = 0; i < seeds.size(); i++) {
                 seeds.set(i, i);
             }

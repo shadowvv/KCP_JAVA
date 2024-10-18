@@ -62,7 +62,6 @@ public class KCPSegment {
     private byte[] data;
 
     /**
-     *
      * @param length 数据大小
      */
     public KCPSegment(int length) {
@@ -70,7 +69,6 @@ public class KCPSegment {
     }
 
     /**
-     *
      * @param data 数据
      */
     public KCPSegment(byte[] data) {
@@ -79,6 +77,7 @@ public class KCPSegment {
 
     /**
      * 编码分片头
+     *
      * @param buffer 数据缓存
      */
     public void encodeHead(ByteBuffer buffer) {
@@ -95,6 +94,7 @@ public class KCPSegment {
 
     /**
      * 编码分片数据
+     *
      * @param buffer 数据缓存
      */
     public void encodeData(ByteBuffer buffer) {
